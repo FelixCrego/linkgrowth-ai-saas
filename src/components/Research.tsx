@@ -5,7 +5,11 @@ import { INITIAL_TRENDS } from "../constants";
 import { Trend } from "../types";
 import { research } from "../lib/api";
 
-export const Research = () => {
+interface ResearchProps {
+  onGenerateContent?: (trend: Trend) => void;
+}
+
+export const Research = ({ onGenerateContent }: ResearchProps) => {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Trend[]>(INITIAL_TRENDS);
@@ -108,7 +112,10 @@ export const Research = () => {
                     <p className="font-bold text-sm text-green-400">{trend.sentiment}</p>
                   </div>
                 </div>
-                <button className="w-full flex items-center justify-center gap-3 pt-6 group/btn text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 group-hover:text-white transition-all mt-auto">
+                <button
+                  onClick={() => onGenerateContent?.(trend)}
+                  className="w-full flex items-center justify-center gap-3 pt-6 group/btn text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 group-hover:text-white transition-all mt-auto"
+                >
                   Generate Content
                   <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-2 transition-transform" />
                 </button>

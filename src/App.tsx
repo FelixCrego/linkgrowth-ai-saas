@@ -5,7 +5,7 @@ import { Research } from "./components/Research";
 import { PostComposer } from "./components/PostComposer";
 import { NetworkManager } from "./components/NetworkManager";
 import { Onboarding } from "./components/Onboarding";
-import { UserPreferences, AppView, SubscriptionTier, Tenant } from "./types";
+import { UserPreferences, AppView, SubscriptionTier, Tenant, Trend } from "./types";
 import { motion, AnimatePresence } from "motion/react";
 import { Pricing } from "./components/Pricing";
 import { LandingPage } from "./components/LandingPage";
@@ -21,6 +21,7 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [upgradeLoadingTier, setUpgradeLoadingTier] = useState<SubscriptionTier | null>(null);
   const [upgradeError, setUpgradeError] = useState("");
+  const [composerInitialPrompt, setComposerInitialPrompt] = useState("");
   const [currentTenant, setCurrentTenant] = useState<Tenant>({
     id: "workspace",
     name: "LinkGrowth Workspace",
@@ -225,6 +226,12 @@ export default function App() {
     await hydrateSession();
   };
 
+  const handleGenerateFromResearch = (trend: Trend) => {
+    const prompt = `Create a high-engagement LinkedIn post about "${trend.topic}" for my niche. Context: reach is ${trend.reach}, sentiment is ${trend.sentiment}. Include a bold hook, tactical takeaways, and a CTA.`;
+    setComposerInitialPrompt(prompt);
+    setView(AppView.COMPOSER);
+  };
+
   useEffect(() => {
     const syncTier = async () => {
       if (!isAuthenticated) return;
@@ -266,9 +273,9 @@ export default function App() {
       case AppView.DASHBOARD:
         return <Dashboard />;
       case AppView.RESEARCH:
-        return <Research />;
+        return <Research onGenerateContent={handleGenerateFromResearch} />;
       case AppView.COMPOSER:
-        return <PostComposer />;
+        return <PostComposer initialPrompt={composerInitialPrompt} />;
       case AppView.NETWORK:
         return <NetworkManager />;
       case AppView.VOICE_LAB:

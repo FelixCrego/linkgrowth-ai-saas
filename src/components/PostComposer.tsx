@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { 
   Send, 
@@ -17,7 +17,11 @@ type GeneratedImage = {
   mimeType: string;
 };
 
-export const PostComposer = () => {
+interface PostComposerProps {
+  initialPrompt?: string;
+}
+
+export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
@@ -26,6 +30,14 @@ export const PostComposer = () => {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const [posting, setPosting] = useState(false);
+
+  useEffect(() => {
+    if (!initialPrompt) return;
+    setPrompt(initialPrompt);
+    setOutput("");
+    setGeneratedImage(null);
+    setError("");
+  }, [initialPrompt]);
 
   const generatePost = async () => {
     if (!prompt) return;

@@ -44,21 +44,12 @@ export const Dashboard = () => {
 
   const statCards = useMemo(() => {
     if (!metrics) return [];
-    const analytics = metrics.linkedin.analytics;
-    const followerValue =
-      analytics.followerCount === null ? (metrics.linkedin.connected ? "N/A" : "Not Connected") : compactNumber(analytics.followerCount);
-    const followerDelta =
-      analytics.followerDeltaLast7Days === null
-        ? analytics.available
-          ? "LinkedIn"
-          : "Scope Needed"
-        : `+${analytics.followerDeltaLast7Days} / 7d`;
 
     return [
       {
-        label: "Profile Followers",
-        value: followerValue,
-        delta: followerDelta,
+        label: "LinkedIn Bridge",
+        value: metrics.linkedin.connected ? "Connected" : "Not Connected",
+        delta: metrics.linkedin.connected ? "Live" : "Action Needed",
         icon: TrendingUp,
       },
       {
@@ -107,12 +98,6 @@ export const Dashboard = () => {
       </header>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
-      {!loading && metrics?.linkedin.analytics.error && (
-        <p className="text-xs text-amber-300">
-          LinkedIn analytics note: {metrics.linkedin.analytics.error}
-        </p>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {(loading ? [0, 1, 2, 3] : statCards).map((stat, i) => (
           <motion.div
@@ -132,7 +117,7 @@ export const Dashboard = () => {
             </div>
             <div>
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{loading ? "Loading..." : stat.label}</p>
-              <h4 className="text-2xl font-light text-white mt-1">{loading ? "—" : stat.value}</h4>
+              <h4 className="text-2xl font-light text-white mt-1">{loading ? "-" : stat.value}</h4>
             </div>
           </motion.div>
         ))}

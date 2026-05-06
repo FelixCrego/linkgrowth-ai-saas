@@ -31,17 +31,11 @@ export function linkedinCallbackUrlForRequest(req: VercelRequest): string {
 }
 
 export function linkedinAuthUrl(state: string, callbackUrl = linkedinCallbackUrl()): string {
-  const extraScopes = (optionalEnv("LINKEDIN_EXTRA_SCOPES") ?? "")
-    .split(/[,\s]+/)
-    .map((scope) => scope.trim())
-    .filter(Boolean);
-  const scope = ["openid", "profile", "email", "w_member_social", ...extraScopes].join(" ");
-
   const params = new URLSearchParams({
     response_type: "code",
     client_id: requireEnv("LINKEDIN_CLIENT_ID"),
     redirect_uri: callbackUrl,
-    scope,
+    scope: "openid profile email w_member_social",
     state,
   });
   return `${LINKEDIN_AUTH_BASE}?${params.toString()}`;
@@ -95,13 +89,6 @@ export async function fetchLinkedInMemberUrn(accessToken: string): Promise<strin
 type LinkedInImageInput = {
   base64?: string;
   mimeType?: string;
-};
-
-export type LinkedInMemberAnalytics = {
-  followerCount: number | null;
-  followerDeltaLast7Days: number | null;
-  available: boolean;
-  error: string | null;
 };
 
 type RegisterUploadResponse = {
@@ -168,23 +155,6 @@ async function uploadLinkedInImageBytes(accessToken: string, uploadUrl: string, 
   if (!response.ok) {
     const textBody = await response.text();
     throw new Error(`LinkedIn image upload failed: ${response.status} ${textBody}`);
-  }
-}
-
-async function createLinkedInUgcPost(accessToken: string, payload: Record<string, unknown>): Promise<void> {
-  const response = await fetch("https://api.linkedin.com/v2/ugcPosts", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "X-Restli-Protocol-Version": "2.0.0",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const textBody = await response.text();
-    throw new Error(`LinkedIn publish failed: ${response.status} ${textBody}`);
   }
 }
 
@@ -264,66 +234,5 @@ export async function publishLinkedInPost(
   const postUrn = await createLinkedInUgcPostWithId(accessToken, payload);
 
   return { ok: true, postUrn };
-}
-
-function linkedInVersionHeader(): string {
-  const configured = optionalEnv("LINKEDIN_API_VERSION");
-  if (configured) return configured;
-  const now = new Date();
-  return `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
-type MemberFollowerCountResponse = {
-  elements?: Array<{ memberFollowersCount?: number }>;
-};
-
-export async function fetchLinkedInMemberAnalytics(accessToken: string): Promise<LinkedInMemberAnalytics> {
-  const headers = {
-    Authorization: `Bearer ${accessToken}`,
-    "X-Restli-Protocol-Version": "2.0.0",
-    "Linkedin-Version": linkedInVersionHeader(),
-    "Content-Type": "application/json",
-  };
-
-  const lifetimeRes = await fetch("https://api.linkedin.com/rest/memberFollowersCount?q=me", { headers });
-  if (!lifetimeRes.ok) {
-    const body = await lifetimeRes.text();
-    return {
-      followerCount: null,
-      followerDeltaLast7Days: null,
-      available: false,
-      error: `memberFollowersCount unavailable (${lifetimeRes.status}) ${body}`,
-    };
-  }
-
-  const lifetimeJson = (await lifetimeRes.json()) as MemberFollowerCountResponse;
-  const followerCount = lifetimeJson.elements?.[0]?.memberFollowersCount ?? null;
-
-  const end = new Date();
-  end.setUTCHours(0, 0, 0, 0);
-  const start = new Date(end);
-  start.setUTCDate(start.getUTCDate() - 7);
-  const dateRange = `(start:(year:${start.getUTCFullYear()},month:${start.getUTCMonth() + 1},day:${start.getUTCDate()}),end:(year:${end.getUTCFullYear()},month:${end.getUTCMonth() + 1},day:${end.getUTCDate()}))`;
-  const rangeUrl = `https://api.linkedin.com/rest/memberFollowersCount?q=dateRange&dateRange=${encodeURIComponent(dateRange)}`;
-  const rangeRes = await fetch(rangeUrl, { headers });
-
-  if (!rangeRes.ok) {
-    return {
-      followerCount,
-      followerDeltaLast7Days: null,
-      available: true,
-      error: null,
-    };
-  }
-
-  const rangeJson = (await rangeRes.json()) as MemberFollowerCountResponse;
-  const followerDeltaLast7Days = (rangeJson.elements ?? []).reduce((sum, element) => sum + (element.memberFollowersCount ?? 0), 0);
-
-  return {
-    followerCount,
-    followerDeltaLast7Days,
-    available: true,
-    error: null,
-  };
 }
 

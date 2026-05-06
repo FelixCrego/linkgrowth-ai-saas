@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { motion } from "motion/react";
 import { 
   ArrowRight, 
@@ -7,10 +6,8 @@ import {
   Linkedin,
   Search,
   PenTool,
-  Image as ImageIcon,
-  RefreshCw
+  Image as ImageIcon
 } from "lucide-react";
-import { generateImage as generateImageApi } from "../lib/api";
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -18,31 +15,6 @@ interface LandingPageProps {
 }
 
 export const LandingPage = ({ onGetStarted, onPriceClick }: LandingPageProps) => {
-  const [imagePrompt, setImagePrompt] = useState("");
-  const [generatedImageUrl, setGeneratedImageUrl] = useState("");
-  const [generatingImage, setGeneratingImage] = useState(false);
-  const [imageError, setImageError] = useState("");
-
-  const generateImage = async () => {
-    if (!imagePrompt.trim()) return;
-
-    setGeneratingImage(true);
-    setImageError("");
-    try {
-      const result = await generateImageApi(imagePrompt.trim());
-      setGeneratedImageUrl(`data:${result.mimeType};base64,${result.imageBase64}`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Image generation failed";
-      if (message.toLowerCase().includes("unauthorized")) {
-        setImageError("Sign in to generate images.");
-      } else {
-        setImageError(message);
-      }
-    } finally {
-      setGeneratingImage(false);
-    }
-  };
-
   return (
     <div className="bg-brand-dark min-h-screen text-slate-200 overflow-x-hidden">
       {/* Navigation */}
@@ -149,15 +121,13 @@ export const LandingPage = ({ onGetStarted, onPriceClick }: LandingPageProps) =>
           </div>
           <div className="glass-panel p-2 aspect-[4/3] relative overflow-hidden group">
             <div className="absolute inset-0 bg-brand-accent/5 backdrop-blur-sm"></div>
-            <div className="absolute inset-0 flex items-center justify-center group-hover:scale-110 transition-transform duration-700">
-              <Search className="w-32 h-32 opacity-10" />
-            </div>
-            <div className="relative h-full border border-white/5 rounded-xl bg-slate-900 shadow-2xl flex flex-col p-8 justify-center">
-               <div className="space-y-4">
-                  <div className="h-4 bg-slate-800 w-3/4 rounded-full"></div>
-                  <div className="h-4 bg-slate-800 w-1/2 rounded-full"></div>
-                  <div className="h-32 bg-brand-accent/10 border border-brand-accent/20 rounded-xl animate-pulse"></div>
-               </div>
+            <div className="relative h-full border border-white/5 rounded-xl bg-slate-900 shadow-2xl overflow-hidden">
+              <img
+                src="/images/features/research.png"
+                alt="Deep research screenshot"
+                className="w-full h-full object-cover object-left-top transition-transform duration-700 group-hover:scale-[1.03]"
+              />
+              <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-brand-dark/80 to-transparent pointer-events-none"></div>
             </div>
           </div>
         </div>
@@ -165,15 +135,13 @@ export const LandingPage = ({ onGetStarted, onPriceClick }: LandingPageProps) =>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-24 items-center md:flex-row-reverse">
           <div className="glass-panel p-2 aspect-[4/3] relative overflow-hidden order-last md:order-first group">
             <div className="absolute inset-0 bg-brand-accent/5 backdrop-blur-sm"></div>
-            <div className="relative h-full border border-white/5 rounded-xl bg-slate-900 shadow-2xl flex flex-col p-8 justify-center">
-               <div className="flex gap-4 mb-4">
-                  <div className="w-full h-8 bg-slate-800 rounded"></div>
-                  <div className="w-24 h-8 bg-brand-accent rounded"></div>
-               </div>
-               <div className="space-y-4">
-                  <div className="h-20 bg-slate-800/50 rounded-xl border border-slate-700/50"></div>
-                  <div className="h-20 bg-slate-800/50 rounded-xl border border-slate-700/50"></div>
-               </div>
+            <div className="relative h-full border border-white/5 rounded-xl bg-slate-900 shadow-2xl overflow-hidden">
+              <img
+                src="/images/features/composer.png"
+                alt="Content engine screenshot"
+                className="w-full h-full object-cover object-left-top transition-transform duration-700 group-hover:scale-[1.03]"
+              />
+              <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-brand-dark/80 to-transparent pointer-events-none"></div>
             </div>
           </div>
           <div className="space-y-6">
@@ -231,29 +199,13 @@ export const LandingPage = ({ onGetStarted, onPriceClick }: LandingPageProps) =>
 
           <div className="glass-panel p-2 aspect-[4/3] relative overflow-hidden group">
             <div className="absolute inset-0 bg-brand-accent/5 backdrop-blur-sm"></div>
-            <div className="relative h-full border border-white/5 rounded-xl bg-slate-900 shadow-2xl flex flex-col p-4 gap-3">
-              <textarea
-                className="w-full h-20 bg-slate-900 border border-brand-border p-3 outline-none focus:border-brand-accent/50 transition-all text-xs resize-none text-white rounded-xl"
-                placeholder="Prompt an image: modern SaaS founder with LinkedIn growth chart..."
-                value={imagePrompt}
-                onChange={(event) => setImagePrompt(event.target.value)}
+            <div className="relative h-full border border-white/5 rounded-xl bg-slate-900 shadow-2xl overflow-hidden">
+              <img
+                src="/images/features/dashboard.png"
+                alt="Dashboard screenshot"
+                className="w-full h-full object-cover object-left-top transition-transform duration-700 group-hover:scale-[1.03]"
               />
-              <button
-                onClick={generateImage}
-                disabled={generatingImage || !imagePrompt.trim()}
-                className="bg-brand-accent text-white py-2.5 rounded-xl flex items-center justify-center gap-2 font-bold uppercase text-[10px] tracking-[0.15em] disabled:opacity-50"
-              >
-                {generatingImage ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
-                {generatingImage ? "Generating..." : "Generate Image"}
-              </button>
-              <div className="flex-1 rounded-xl border border-brand-border bg-slate-800/30 overflow-hidden flex items-center justify-center">
-                {generatedImageUrl ? (
-                  <img src={generatedImageUrl} alt="Generated preview" className="w-full h-full object-cover" />
-                ) : (
-                  <p className="text-[11px] text-slate-500 uppercase tracking-widest">Preview</p>
-                )}
-              </div>
-              {imageError && <p className="text-[11px] text-red-400">{imageError}</p>}
+              <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-brand-dark/80 to-transparent pointer-events-none"></div>
             </div>
           </div>
         </div>

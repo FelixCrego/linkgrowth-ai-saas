@@ -26,6 +26,8 @@ Required for core app:
 - `SESSION_SECRET`
 - `DATABASE_URL`
 - `OPENAI_API_KEY`
+- `OPENAI_MODEL` (optional, defaults to `gpt-4o-mini`)
+- `OPENAI_RESEARCH_MODEL` (optional, used for web-backed research; recommended `o4-mini-deep-research`)
 - `OPENAI_IMAGE_MODEL` (optional, defaults to `gpt-image-1`)
 
 Required for billing:

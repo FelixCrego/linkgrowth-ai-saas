@@ -81,6 +81,10 @@ export type DeepResearchPack = {
     prompt: string;
     reason: string;
   }>;
+  sources?: Array<{
+    title: string;
+    url: string;
+  }>;
 };
 
 export async function generatePost(

@@ -234,6 +234,23 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
             <p className="text-xs text-slate-300"><span className="text-slate-500">Trending:</span> {(research.trendingTopics || []).slice(0, 3).join(" • ")}</p>
             <p className="text-xs text-slate-300"><span className="text-slate-500">Pain Points:</span> {(research.painPoints || []).slice(0, 3).join(" • ")}</p>
             <p className="text-xs text-slate-300"><span className="text-slate-500">Angle:</span> {research.recommendedAngle}</p>
+            {Array.isArray(research.sources) && research.sources.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Sources</p>
+                {research.sources.slice(0, 3).map((source) => (
+                  <a
+                    key={source.url}
+                    href={source.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block text-[11px] text-brand-accent hover:underline truncate"
+                    title={source.title}
+                  >
+                    {source.title}
+                  </a>
+                ))}
+              </div>
+            )}
             {Array.isArray(research.imageSuggestions) && research.imageSuggestions.length > 0 && (
               <div className="space-y-2 pt-2">
                 <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Suggested Images</p>

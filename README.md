@@ -5,7 +5,7 @@ Production-ready LinkGrowth AI SaaS foundation with:
 - Multi-workspace persistence on Neon Postgres
 - Stripe subscriptions (Starter/Pro/Elite)
 - LinkedIn OAuth + publishing
-- Server-side Gemini generation (no client API key exposure)
+- Server-side OpenAI generation (no client API key exposure)
 - Vercel serverless API routes
 
 ## Architecture
@@ -25,7 +25,7 @@ Required for core app:
 - `APP_URL`
 - `SESSION_SECRET`
 - `DATABASE_URL`
-- `GEMINI_API_KEY`
+- `OPENAI_API_KEY`
 
 Required for billing:
 - `STRIPE_SECRET_KEY`
@@ -68,3 +68,4 @@ In LinkedIn developer portal:
 - Billing: `/api/billing/checkout`, `/api/billing/portal`, `/api/billing/status`, `/api/billing/webhook`
 - LinkedIn: `/api/linkedin/auth-url`, `/api/linkedin/callback`, `/api/linkedin/status`, `/api/linkedin/disconnect`, `/api/linkedin/publish`
 - Health: `/api/health`
+

@@ -68,6 +68,13 @@ function postTypeInstruction(postType: PostType): string {
   return "Format as a listicle post with concise, high-value bullet points.";
 }
 
+function textIncludes(haystack: string, needle: string): boolean {
+  const h = haystack.toLowerCase();
+  const n = needle.toLowerCase().trim();
+  if (!n) return false;
+  return h.includes(n);
+}
+
 function normalizeLower(value: string): string {
   return value.toLowerCase();
 }
@@ -146,9 +153,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     const trainedVoice = voiceProfileRes.rows[0]?.profile_json;
 
-    const context = onboarding
+    const workspaceContext = onboarding
       ? `Niche: ${onboarding.niche}\nIndustry: ${onboarding.industry}\nTarget Audience: ${onboarding.target_audience}\nPreferred Tone: ${onboarding.tone}\nPosting Frequency: ${onboarding.frequency}`
       : "Niche context is unavailable for this workspace.";
+
+    const onboardingNiche = onboarding?.niche?.trim() ?? "";
+    const promptOverridesWorkspaceNiche =
+      onboardingNiche.length > 0 && !textIncludes(parsed.data.prompt, onboardingNiche);
+
+    const context = promptOverridesWorkspaceNiche
+      ? `Primary Prompt Intent (must dominate):
+${parsed.data.prompt}
+
+Workspace Profile (secondary fallback only if directly relevant):
+${workspaceContext}`
+      : workspaceContext;
 
     const postType = parsed.data.postType ?? "thought_leadership";
     const selectedTone = parsed.data.tone ?? onboarding?.tone ?? "Professional";
@@ -179,6 +198,7 @@ Hard requirements:
 - Return only structured JSON in the requested shape.
 - Use current web findings, not generic memory-only advice.
 - Prioritize specific topics, pain points, and language used by the actual audience.
+- Treat the user seed prompt as the primary intent. Workspace profile context is secondary and must not override the prompt.
 
 Return actionable trends, pain points, hooks, and 3 specific image suggestions that would increase post engagement on LinkedIn.`,
       { requireSources: true }
@@ -197,7 +217,7 @@ Return actionable trends, pain points, hooks, and 3 specific image suggestions t
     ]);
 
     let content = await generateText(
-      "You are a LinkedIn growth copywriter. Use the provided business context as a hard constraint. Write an engaging LinkedIn post with a strong hook, clear whitespace formatting, tactical insight, a concrete CTA, and 3 relevant hashtags. Avoid generic advice and keep the post specific to the niche and target audience.",
+      "You are a LinkedIn growth copywriter. Prioritize the explicit user prompt intent over stored workspace defaults when they differ. Write an engaging LinkedIn post with a strong hook, clear whitespace formatting, tactical insight, a concrete CTA, and 3 relevant hashtags. Avoid generic advice and keep the post specific to the prompt and validated research signals.",
       `Business Context:
 ${context}
 
@@ -226,7 +246,8 @@ ${parsed.data.prompt}
 ${variationInstruction}`
     );
 
-    const anchors = extractAnchors(parsed.data.prompt, context);
+    const anchorContext = promptOverridesWorkspaceNiche ? "" : context;
+    const anchors = extractAnchors(parsed.data.prompt, anchorContext);
     if (!containsAnyAnchor(content, anchors) || !containsResearchSignals(content, research)) {
       content = await generateText(
         "You are a LinkedIn growth copywriter. Follow constraints exactly and avoid generic output.",

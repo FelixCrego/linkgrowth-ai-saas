@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { appUrl } from "../_lib/env";
-import { exchangeLinkedInCode, fetchLinkedInMemberUrn } from "../_lib/linkedin";
-import { serverError } from "../_lib/http";
-import { getServiceSupabase } from "../_lib/supabase";
+import { appUrl } from "../_lib/env.js";
+import { exchangeLinkedInCode, fetchLinkedInMemberUrn } from "../_lib/linkedin.js";
+import { serverError } from "../_lib/http.js";
+import { getServiceSupabase } from "../_lib/supabase.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -38,3 +38,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     serverError(res, error);
   }
 }
+

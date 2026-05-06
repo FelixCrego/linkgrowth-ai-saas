@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
-import { appUrl, requireEnv } from "../_lib/env";
-import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } from "../_lib/http";
-import { requireSession } from "../_lib/session";
-import { getServiceSupabase } from "../_lib/supabase";
-import { getStripe } from "../_lib/stripe";
-import { normalizeTier, tierPriceEnvName } from "../_lib/tiers";
+import { appUrl, requireEnv } from "../_lib/env.js";
+import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } from "../_lib/http.js";
+import { requireSession } from "../_lib/session.js";
+import { getServiceSupabase } from "../_lib/supabase.js";
+import { getStripe } from "../_lib/stripe.js";
+import { normalizeTier, tierPriceEnvName } from "../_lib/tiers.js";
 
 const schema = z.object({ tier: z.string() });
 
@@ -74,3 +74,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     serverError(res, error);
   }
 }
+

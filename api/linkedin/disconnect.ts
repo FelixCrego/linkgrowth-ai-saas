@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { methodNotAllowed, sendJson, serverError } from "../_lib/http";
-import { requireSession } from "../_lib/session";
-import { getServiceSupabase } from "../_lib/supabase";
+import { methodNotAllowed, sendJson, serverError } from "../_lib/http.js";
+import { requireSession } from "../_lib/session.js";
+import { getServiceSupabase } from "../_lib/supabase.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
@@ -19,3 +19,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     serverError(res, error);
   }
 }
+

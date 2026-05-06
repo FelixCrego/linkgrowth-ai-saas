@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from "zod";
-import { requireEnv } from "../_lib/env";
-import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } from "../_lib/http";
-import { requireSession } from "../_lib/session";
-import { getServiceSupabase } from "../_lib/supabase";
+import { requireEnv } from "../_lib/env.js";
+import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } from "../_lib/http.js";
+import { requireSession } from "../_lib/session.js";
+import { getServiceSupabase } from "../_lib/supabase.js";
 
 const schema = z.object({ trainingData: z.string().min(20) });
 
@@ -44,3 +44,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     serverError(res, error);
   }
 }
+

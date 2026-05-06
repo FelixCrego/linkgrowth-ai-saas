@@ -1,5 +1,5 @@
 import Stripe from "stripe";
-import { requireEnv } from "./env";
+import { requireEnv } from "./env.js";
 
 let stripeClient: Stripe | null = null;
 
@@ -9,3 +9,4 @@ export function getStripe(): Stripe {
   }
   return stripeClient;
 }
+

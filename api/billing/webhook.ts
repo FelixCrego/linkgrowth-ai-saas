@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireEnv } from "../_lib/env";
-import { methodNotAllowed, sendJson, serverError } from "../_lib/http";
-import { getServiceSupabase } from "../_lib/supabase";
-import { getStripe } from "../_lib/stripe";
+import { requireEnv } from "../_lib/env.js";
+import { methodNotAllowed, sendJson, serverError } from "../_lib/http.js";
+import { getServiceSupabase } from "../_lib/supabase.js";
+import { getStripe } from "../_lib/stripe.js";
 
 function priceIdToTier(priceId: string | null | undefined): "starter" | "pro" | "elite" {
   if (!priceId) return "starter";
@@ -98,3 +98,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     serverError(res, error);
   }
 }
+

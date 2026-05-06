@@ -1,4 +1,4 @@
-import { appUrl, requireEnv } from "./env";
+import { appUrl, requireEnv } from "./env.js";
 
 const LINKEDIN_AUTH_BASE = "https://www.linkedin.com/oauth/v2/authorization";
 const LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken";
@@ -77,3 +77,4 @@ export async function publishLinkedInPost(accessToken: string, authorUrn: string
 
   return { ok: true };
 }
+

@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { SignJWT, jwtVerify } from "jose";
-import { requireEnv } from "./env";
-import { unauthorized } from "./http";
+import { requireEnv } from "./env.js";
+import { unauthorized } from "./http.js";
 
 const COOKIE_NAME = "lg_session";
 const SESSION_AGE_SECONDS = 60 * 60 * 24 * 7;
@@ -79,3 +79,4 @@ export async function requireSession(req: VercelRequest, res: VercelResponse): P
     return null;
   }
 }
+

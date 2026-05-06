@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
-import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } from "../_lib/http";
-import { requireSession } from "../_lib/session";
-import { getServiceSupabase } from "../_lib/supabase";
-import { publishLinkedInPost } from "../_lib/linkedin";
+import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } from "../_lib/http.js";
+import { requireSession } from "../_lib/session.js";
+import { getServiceSupabase } from "../_lib/supabase.js";
+import { publishLinkedInPost } from "../_lib/linkedin.js";
 
 const schema = z.object({ text: z.string().min(3).max(3000) });
 
@@ -34,3 +34,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     serverError(res, error);
   }
 }
+

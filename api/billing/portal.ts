@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { appUrl } from "../_lib/env";
-import { badRequest, methodNotAllowed, sendJson, serverError } from "../_lib/http";
-import { requireSession } from "../_lib/session";
-import { getServiceSupabase } from "../_lib/supabase";
-import { getStripe } from "../_lib/stripe";
+import { appUrl } from "../_lib/env.js";
+import { badRequest, methodNotAllowed, sendJson, serverError } from "../_lib/http.js";
+import { requireSession } from "../_lib/session.js";
+import { getServiceSupabase } from "../_lib/supabase.js";
+import { getStripe } from "../_lib/stripe.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
@@ -33,3 +33,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     serverError(res, error);
   }
 }
+

@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } from "../_lib/http";
-import { getServiceSupabase } from "../_lib/supabase";
-import { createSessionToken, setSessionCookie } from "../_lib/session";
+import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } from "../_lib/http.js";
+import { getServiceSupabase } from "../_lib/supabase.js";
+import { createSessionToken, setSessionCookie } from "../_lib/session.js";
 
 const schema = z.object({
   email: z.string().email(),
@@ -74,3 +74,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     serverError(res, error);
   }
 }
+

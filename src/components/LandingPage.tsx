@@ -1,18 +1,16 @@
+import { useState } from "react";
 import { motion } from "motion/react";
 import { 
   ArrowRight, 
   Sparkles, 
-  Zap, 
-  Globe, 
   Shield, 
-  TrendingUp, 
   Linkedin,
-  BarChart3,
   Search,
   PenTool,
-  Users
+  Image as ImageIcon,
+  RefreshCw
 } from "lucide-react";
-import { AppView } from "../types";
+import { generateImage as generateImageApi } from "../lib/api";
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -20,6 +18,31 @@ interface LandingPageProps {
 }
 
 export const LandingPage = ({ onGetStarted, onPriceClick }: LandingPageProps) => {
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [generatedImageUrl, setGeneratedImageUrl] = useState("");
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [imageError, setImageError] = useState("");
+
+  const generateImage = async () => {
+    if (!imagePrompt.trim()) return;
+
+    setGeneratingImage(true);
+    setImageError("");
+    try {
+      const result = await generateImageApi(imagePrompt.trim());
+      setGeneratedImageUrl(`data:${result.mimeType};base64,${result.imageBase64}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Image generation failed";
+      if (message.toLowerCase().includes("unauthorized")) {
+        setImageError("Sign in to generate images.");
+      } else {
+        setImageError(message);
+      }
+    } finally {
+      setGeneratingImage(false);
+    }
+  };
+
   return (
     <div className="bg-brand-dark min-h-screen text-slate-200 overflow-x-hidden">
       {/* Navigation */}
@@ -177,6 +200,61 @@ export const LandingPage = ({ onGetStarted, onPriceClick }: LandingPageProps) =>
                 Smart Scheduling Engine
               </li>
             </ul>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-24 items-start">
+          <div className="space-y-6">
+            <div className="w-12 h-12 bg-slate-800 rounded-xl border border-slate-700/50 flex items-center justify-center text-brand-accent">
+              <ImageIcon className="w-6 h-6" />
+            </div>
+            <h2 className="text-4xl font-light text-white tracking-tight">AI Image Studio</h2>
+            <p className="text-slate-400 leading-relaxed font-serif italic text-lg">
+              Generate on-brand visuals directly from your campaign prompt. Pair every post with a custom image built for
+              LinkedIn feed performance.
+            </p>
+            <ul className="space-y-4 pt-4 text-sm font-medium text-slate-300">
+              <li className="flex items-center gap-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-brand-accent"></div>
+                Prompt-to-Visual Generation
+              </li>
+              <li className="flex items-center gap-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-brand-accent"></div>
+                Social-Ready 1:1 Assets
+              </li>
+              <li className="flex items-center gap-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-brand-accent"></div>
+                One-Click Composer Integration
+              </li>
+            </ul>
+          </div>
+
+          <div className="glass-panel p-2 aspect-[4/3] relative overflow-hidden group">
+            <div className="absolute inset-0 bg-brand-accent/5 backdrop-blur-sm"></div>
+            <div className="relative h-full border border-white/5 rounded-xl bg-slate-900 shadow-2xl flex flex-col p-4 gap-3">
+              <textarea
+                className="w-full h-20 bg-slate-900 border border-brand-border p-3 outline-none focus:border-brand-accent/50 transition-all text-xs resize-none text-white rounded-xl"
+                placeholder="Prompt an image: modern SaaS founder with LinkedIn growth chart..."
+                value={imagePrompt}
+                onChange={(event) => setImagePrompt(event.target.value)}
+              />
+              <button
+                onClick={generateImage}
+                disabled={generatingImage || !imagePrompt.trim()}
+                className="bg-brand-accent text-white py-2.5 rounded-xl flex items-center justify-center gap-2 font-bold uppercase text-[10px] tracking-[0.15em] disabled:opacity-50"
+              >
+                {generatingImage ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
+                {generatingImage ? "Generating..." : "Generate Image"}
+              </button>
+              <div className="flex-1 rounded-xl border border-brand-border bg-slate-800/30 overflow-hidden flex items-center justify-center">
+                {generatedImageUrl ? (
+                  <img src={generatedImageUrl} alt="Generated preview" className="w-full h-full object-cover" />
+                ) : (
+                  <p className="text-[11px] text-slate-500 uppercase tracking-widest">Preview</p>
+                )}
+              </div>
+              {imageError && <p className="text-[11px] text-red-400">{imageError}</p>}
+            </div>
           </div>
         </div>
       </section>

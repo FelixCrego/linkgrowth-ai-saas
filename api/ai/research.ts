@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireEnv } from "../_lib/env.js";
 import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } from "../_lib/http.js";
 import { requireSession } from "../_lib/session.js";
-import { getServiceSupabase } from "../_lib/supabase.js";
+import { sql } from "../_lib/db.js";
 
 const schema = z.object({ query: z.string().min(2) });
 
@@ -31,17 +31,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const trends = JSON.parse(match[0]);
 
-    const supabase = getServiceSupabase();
-    await supabase.from("research_queries").insert({
-      workspace_id: session.workspaceId,
-      user_id: session.userId,
-      query: parsed.data.query,
-      result_json: trends,
-    });
+    await sql(
+      "insert into research_queries (workspace_id, user_id, query, result_json) values ($1, $2, $3, $4::jsonb)",
+      [session.workspaceId, session.userId, parsed.data.query, JSON.stringify(trends)]
+    );
 
     sendJson(res, 200, { trends });
   } catch (error) {
     serverError(res, error);
   }
 }
-

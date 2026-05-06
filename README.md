@@ -2,7 +2,7 @@
 
 Production-ready LinkGrowth AI SaaS foundation with:
 - Session auth (email/password)
-- Multi-workspace persistence on Supabase
+- Multi-workspace persistence on Neon Postgres
 - Stripe subscriptions (Starter/Pro/Elite)
 - LinkedIn OAuth + publishing
 - Server-side Gemini generation (no client API key exposure)
@@ -11,12 +11,12 @@ Production-ready LinkGrowth AI SaaS foundation with:
 ## Architecture
 - Frontend: React + Vite (`src/`)
 - Backend API: Vercel functions (`api/`)
-- Database: Supabase Postgres (`db/schema.sql`)
+- Database: Neon Postgres (`db/schema.sql`)
 
-## 1) Database Setup (Supabase)
-1. Create a Supabase project.
-2. Open SQL editor and run [`db/schema.sql`](db/schema.sql).
-3. Copy `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
+## 1) Database Setup (Neon)
+1. Create a Neon project/database.
+2. Open Neon SQL editor and run [`db/schema.sql`](db/schema.sql).
+3. Copy your connection string and set `DATABASE_URL` (include `sslmode=require`).
 
 ## 2) Environment Variables
 Set all vars from [`.env.example`](.env.example) in Vercel project settings.
@@ -24,8 +24,7 @@ Set all vars from [`.env.example`](.env.example) in Vercel project settings.
 Required for core app:
 - `APP_URL`
 - `SESSION_SECRET`
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `DATABASE_URL`
 - `GEMINI_API_KEY`
 
 Required for billing:

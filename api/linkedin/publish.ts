@@ -2,10 +2,12 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
 import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } from "../_lib/http.js";
 import { requireSession } from "../_lib/session.js";
-import { getServiceSupabase } from "../_lib/supabase.js";
 import { publishLinkedInPost } from "../_lib/linkedin.js";
+import { sql } from "../_lib/db.js";
 
 const schema = z.object({ text: z.string().min(3).max(3000) });
+
+type LinkedInRow = { access_token: string; linkedin_member_urn: string };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
@@ -17,21 +19,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const parsed = schema.safeParse(await parseJsonBody(req));
     if (!parsed.success) return badRequest(res, "Invalid publish payload");
 
-    const supabase = getServiceSupabase();
-    const accountRes = await supabase
-      .from("linkedin_accounts")
-      .select("access_token,linkedin_member_urn")
-      .eq("workspace_id", session.workspaceId)
-      .maybeSingle();
+    const accountRes = await sql<LinkedInRow>(
+      "select access_token, linkedin_member_urn from linkedin_accounts where workspace_id = $1 limit 1",
+      [session.workspaceId]
+    );
 
-    if (accountRes.error) throw accountRes.error;
-    if (!accountRes.data) return badRequest(res, "LinkedIn is not connected");
+    const account = accountRes.rows[0];
+    if (!account) return badRequest(res, "LinkedIn is not connected");
 
-    await publishLinkedInPost(accountRes.data.access_token, accountRes.data.linkedin_member_urn, parsed.data.text);
-
+    await publishLinkedInPost(account.access_token, account.linkedin_member_urn, parsed.data.text);
     sendJson(res, 200, { ok: true });
   } catch (error) {
     serverError(res, error);
   }
 }
-

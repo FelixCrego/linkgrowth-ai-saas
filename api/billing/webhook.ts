@@ -1,8 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import Stripe from "stripe";
 import { requireEnv } from "../_lib/env.js";
 import { methodNotAllowed, sendJson, serverError } from "../_lib/http.js";
-import { getServiceSupabase } from "../_lib/supabase.js";
 import { getStripe } from "../_lib/stripe.js";
+import { sql } from "../_lib/db.js";
 
 function priceIdToTier(priceId: string | null | undefined): "starter" | "pro" | "elite" {
   if (!priceId) return "starter";
@@ -32,64 +33,87 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const event = stripe.webhooks.constructEvent(rawBody, signature, requireEnv("STRIPE_WEBHOOK_SECRET"));
 
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const workspaceId = session.metadata?.workspaceId;
+      if (workspaceId && typeof workspaceId === "string") {
+        await sql(
+          `insert into subscriptions (workspace_id, stripe_customer_id, stripe_subscription_id, status, updated_at)
+           values ($1, $2, $3, 'active', now())
+           on conflict (workspace_id)
+           do update set
+            stripe_customer_id = excluded.stripe_customer_id,
+            stripe_subscription_id = excluded.stripe_subscription_id,
+            status = excluded.status,
+            updated_at = now()`,
+          [
+            workspaceId,
+            typeof session.customer === "string" ? session.customer : null,
+            typeof session.subscription === "string" ? session.subscription : null,
+          ]
+        );
+      }
+    }
+
     if (
-      event.type === "checkout.session.completed" ||
       event.type === "customer.subscription.updated" ||
       event.type === "customer.subscription.created" ||
       event.type === "customer.subscription.deleted"
     ) {
-      const supabase = getServiceSupabase();
+      const subscription = event.data.object as Stripe.Subscription;
 
-      if (event.type === "checkout.session.completed") {
-        const session = event.data.object;
-        const workspaceId = session.metadata?.workspaceId;
-        if (workspaceId && typeof workspaceId === "string") {
-          await supabase.from("subscriptions").upsert({
-            workspace_id: workspaceId,
-            stripe_customer_id: typeof session.customer === "string" ? session.customer : null,
-            stripe_subscription_id: typeof session.subscription === "string" ? session.subscription : null,
-            status: "active",
-          });
-        }
+      const lookupBySub = await sql<{ workspace_id: string }>(
+        "select workspace_id from subscriptions where stripe_subscription_id = $1 limit 1",
+        [subscription.id]
+      );
+
+      let workspaceId = lookupBySub.rows[0]?.workspace_id ?? null;
+
+      if (!workspaceId && typeof subscription.customer === "string") {
+        const lookupByCustomer = await sql<{ workspace_id: string }>(
+          "select workspace_id from subscriptions where stripe_customer_id = $1 limit 1",
+          [subscription.customer]
+        );
+        workspaceId = lookupByCustomer.rows[0]?.workspace_id ?? null;
       }
 
-      if (
-        event.type === "customer.subscription.updated" ||
-        event.type === "customer.subscription.created" ||
-        event.type === "customer.subscription.deleted"
-      ) {
-        const subscription = event.data.object;
+      if (workspaceId) {
+        const priceId = subscription.items.data[0]?.price?.id ?? null;
+        const tier = priceIdToTier(priceId);
+        const currentPeriodEndRaw = (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end;
+        const currentPeriodEnd = typeof currentPeriodEndRaw === "number" ? new Date(currentPeriodEndRaw * 1000).toISOString() : null;
 
-        const lookup = await supabase
-          .from("subscriptions")
-          .select("workspace_id")
-          .eq("stripe_subscription_id", subscription.id)
-          .maybeSingle();
-
-        let workspaceId = lookup.data?.workspace_id ?? null;
-
-        if (!workspaceId && typeof subscription.customer === "string") {
-          const byCustomer = await supabase
-            .from("subscriptions")
-            .select("workspace_id")
-            .eq("stripe_customer_id", subscription.customer)
-            .maybeSingle();
-          workspaceId = byCustomer.data?.workspace_id ?? null;
-        }
-
-        if (workspaceId) {
-          const tier = priceIdToTier(subscription.items.data[0]?.price?.id);
-          await supabase.from("subscriptions").upsert({
-            workspace_id: workspaceId,
-            stripe_customer_id: typeof subscription.customer === "string" ? subscription.customer : null,
-            stripe_subscription_id: subscription.id,
-            stripe_price_id: subscription.items.data[0]?.price?.id ?? null,
-            status: subscription.status,
+        await sql(
+          `insert into subscriptions (
+            workspace_id,
+            stripe_customer_id,
+            stripe_subscription_id,
+            stripe_price_id,
+            status,
             tier,
-            current_period_end: null,
-            updated_at: new Date().toISOString(),
-          });
-        }
+            current_period_end,
+            updated_at
+          )
+          values ($1, $2, $3, $4, $5, $6, $7, now())
+          on conflict (workspace_id)
+          do update set
+            stripe_customer_id = excluded.stripe_customer_id,
+            stripe_subscription_id = excluded.stripe_subscription_id,
+            stripe_price_id = excluded.stripe_price_id,
+            status = excluded.status,
+            tier = excluded.tier,
+            current_period_end = excluded.current_period_end,
+            updated_at = now()`,
+          [
+            workspaceId,
+            typeof subscription.customer === "string" ? subscription.customer : null,
+            subscription.id,
+            priceId,
+            subscription.status,
+            tier,
+            currentPeriodEnd,
+          ]
+        );
       }
     }
 
@@ -98,4 +122,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     serverError(res, error);
   }
 }
-

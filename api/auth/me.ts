@@ -1,7 +1,18 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { methodNotAllowed, sendJson, serverError } from "../_lib/http.js";
 import { requireSession } from "../_lib/session.js";
-import { getServiceSupabase } from "../_lib/supabase.js";
+import { sql } from "../_lib/db.js";
+
+type UserRow = { id: string; email: string; full_name: string };
+type WorkspaceRow = { id: string; name: string; slug: string };
+type SubscriptionRow = { tier: "starter" | "pro" | "elite"; status: string };
+type OnboardingRow = {
+  niche: string;
+  industry: string;
+  target_audience: string;
+  tone: string;
+  frequency: string;
+};
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") return methodNotAllowed(res, ["GET"]);
@@ -10,42 +21,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const session = await requireSession(req, res);
     if (!session) return;
 
-    const supabase = getServiceSupabase();
+    const userRes = await sql<UserRow>("select id, email, full_name from users where id = $1", [session.userId]);
+    const workspaceRes = await sql<WorkspaceRow>("select id, name, slug from workspaces where id = $1", [session.workspaceId]);
+    const subRes = await sql<SubscriptionRow>("select tier, status from subscriptions where workspace_id = $1", [session.workspaceId]);
+    const onboardingRes = await sql<OnboardingRow>(
+      "select niche, industry, target_audience, tone, frequency from onboarding_profiles where workspace_id = $1",
+      [session.workspaceId]
+    );
 
-    const userRes = await supabase.from("users").select("id,email,full_name").eq("id", session.userId).single();
-    if (userRes.error) throw userRes.error;
+    const user = userRes.rows[0];
+    const workspace = workspaceRes.rows[0];
+    if (!user || !workspace) {
+      return sendJson(res, 404, { error: "Session data not found" });
+    }
 
-    const workspaceRes = await supabase.from("workspaces").select("id,name,slug").eq("id", session.workspaceId).single();
-    if (workspaceRes.error) throw workspaceRes.error;
-
-    const subRes = await supabase.from("subscriptions").select("tier,status").eq("workspace_id", session.workspaceId).maybeSingle();
-    if (subRes.error) throw subRes.error;
-
-    const onboardingRes = await supabase
-      .from("onboarding_profiles")
-      .select("niche,industry,target_audience,tone,frequency")
-      .eq("workspace_id", session.workspaceId)
-      .maybeSingle();
-    if (onboardingRes.error) throw onboardingRes.error;
+    const sub = subRes.rows[0];
+    const onboarding = onboardingRes.rows[0];
 
     sendJson(res, 200, {
-      user: userRes.data,
-      workspace: workspaceRes.data,
-      tier: subRes.data?.tier ?? "starter",
-      subscriptionStatus: subRes.data?.status ?? "inactive",
-      onboarding: onboardingRes.data
+      user,
+      workspace,
+      tier: sub?.tier ?? "starter",
+      subscriptionStatus: sub?.status ?? "inactive",
+      onboarding: onboarding
         ? {
-            niche: onboardingRes.data.niche,
-            industry: onboardingRes.data.industry,
-            targetAudience: onboardingRes.data.target_audience,
-            tone: onboardingRes.data.tone,
-            frequency: onboardingRes.data.frequency,
+            niche: onboarding.niche,
+            industry: onboarding.industry,
+            targetAudience: onboarding.target_audience,
+            tone: onboarding.tone,
+            frequency: onboarding.frequency,
           }
         : null,
-      isOnboarded: Boolean(onboardingRes.data),
+      isOnboarded: Boolean(onboarding),
     });
   } catch (error) {
     serverError(res, error);
   }
 }
-

@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
 import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } from "../_lib/http.js";
 import { requireSession } from "../_lib/session.js";
-import { getServiceSupabase } from "../_lib/supabase.js";
+import { sql } from "../_lib/db.js";
 
 const schema = z.object({
   niche: z.string().min(1),
@@ -22,22 +22,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const parsed = schema.safeParse(await parseJsonBody(req));
     if (!parsed.success) return badRequest(res, "Invalid onboarding payload");
 
-    const supabase = getServiceSupabase();
-    const upsert = await supabase.from("onboarding_profiles").upsert({
-      workspace_id: session.workspaceId,
-      user_id: session.userId,
-      niche: parsed.data.niche,
-      industry: parsed.data.industry,
-      target_audience: parsed.data.targetAudience,
-      tone: parsed.data.tone,
-      frequency: parsed.data.frequency,
-      updated_at: new Date().toISOString(),
-    });
+    await sql(
+      `insert into onboarding_profiles (workspace_id, user_id, niche, industry, target_audience, tone, frequency, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, now())
+       on conflict (workspace_id)
+       do update set
+        user_id = excluded.user_id,
+        niche = excluded.niche,
+        industry = excluded.industry,
+        target_audience = excluded.target_audience,
+        tone = excluded.tone,
+        frequency = excluded.frequency,
+        updated_at = now()`,
+      [
+        session.workspaceId,
+        session.userId,
+        parsed.data.niche,
+        parsed.data.industry,
+        parsed.data.targetAudience,
+        parsed.data.tone,
+        parsed.data.frequency,
+      ]
+    );
 
-    if (upsert.error) throw upsert.error;
     sendJson(res, 200, { ok: true });
   } catch (error) {
     serverError(res, error);
   }
 }
-

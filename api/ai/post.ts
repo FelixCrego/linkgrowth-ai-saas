@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireEnv } from "../_lib/env.js";
 import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } from "../_lib/http.js";
 import { requireSession } from "../_lib/session.js";
-import { getServiceSupabase } from "../_lib/supabase.js";
+import { sql } from "../_lib/db.js";
 
 const schema = z.object({ prompt: z.string().min(5) });
 
@@ -27,17 +27,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const result = await model.generateContent(parsed.data.prompt);
     const content = result.response.text();
 
-    const supabase = getServiceSupabase();
-    await supabase.from("generated_posts").insert({
-      workspace_id: session.workspaceId,
-      user_id: session.userId,
-      prompt: parsed.data.prompt,
-      content,
-    });
+    await sql(
+      "insert into generated_posts (workspace_id, user_id, prompt, content) values ($1, $2, $3, $4)",
+      [session.workspaceId, session.userId, parsed.data.prompt, content]
+    );
 
     sendJson(res, 200, { content });
   } catch (error) {
     serverError(res, error);
   }
 }
-

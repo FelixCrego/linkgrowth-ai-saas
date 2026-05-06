@@ -2,8 +2,8 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } from "../_lib/http.js";
-import { getServiceSupabase } from "../_lib/supabase.js";
 import { createSessionToken, setSessionCookie } from "../_lib/session.js";
+import { withTransaction } from "../_lib/db.js";
 
 const schema = z.object({
   email: z.string().email(),
@@ -24,54 +24,66 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!parsed.success) return badRequest(res, "Invalid signup payload");
 
     const { email, password, name, workspaceName } = parsed.data;
-    const supabase = getServiceSupabase();
-
-    const existing = await supabase.from("users").select("id").eq("email", email.toLowerCase()).maybeSingle();
-    if (existing.data?.id) return badRequest(res, "Email already registered");
-
+    const emailNormalized = email.toLowerCase();
     const passwordHash = await bcrypt.hash(password, 12);
 
-    const createdUser = await supabase
-      .from("users")
-      .insert({ email: email.toLowerCase(), full_name: name, password_hash: passwordHash })
-      .select("id,email")
-      .single();
+    const created = await withTransaction(async (client) => {
+      const existing = await client.query<{ id: string }>("select id from users where email = $1 limit 1", [emailNormalized]);
+      if (existing.rowCount) {
+        throw new Error("Email already registered");
+      }
 
-    if (createdUser.error || !createdUser.data) throw createdUser.error ?? new Error("Could not create user");
+      const userId = crypto.randomUUID();
+      const workspaceId = crypto.randomUUID();
+      const slugBase = toSlug(workspaceName ?? `${name.split(" ")[0]} workspace`);
+      const slug = `${slugBase}-${Math.random().toString(36).slice(2, 8)}`;
+      const workspaceFinalName = workspaceName ?? `${name.split(" ")[0]}'s Workspace`;
 
-    const slugBase = toSlug(workspaceName ?? `${name.split(" ")[0]} workspace`);
-    const workspace = await supabase
-      .from("workspaces")
-      .insert({
-        owner_user_id: createdUser.data.id,
-        name: workspaceName ?? `${name.split(" ")[0]}'s Workspace`,
-        slug: `${slugBase}-${Math.random().toString(36).slice(2, 8)}`,
-      })
-      .select("id,name,slug")
-      .single();
+      await client.query(
+        "insert into users (id, email, full_name, password_hash) values ($1, $2, $3, $4)",
+        [userId, emailNormalized, name, passwordHash]
+      );
 
-    if (workspace.error || !workspace.data) throw workspace.error ?? new Error("Could not create workspace");
+      await client.query(
+        "insert into workspaces (id, owner_user_id, name, slug) values ($1, $2, $3, $4)",
+        [workspaceId, userId, workspaceFinalName, slug]
+      );
 
-    const member = await supabase.from("workspace_members").insert({
-      workspace_id: workspace.data.id,
-      user_id: createdUser.data.id,
-      role: "owner",
+      await client.query(
+        "insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'owner')",
+        [workspaceId, userId]
+      );
+
+      await client.query(
+        `insert into subscriptions (workspace_id, tier, status)
+         values ($1, 'starter', 'inactive')
+         on conflict (workspace_id)
+         do update set tier = excluded.tier, status = excluded.status, updated_at = now()`,
+        [workspaceId]
+      );
+
+      return {
+        user: { id: userId, email: emailNormalized, name },
+        workspace: { id: workspaceId, name: workspaceFinalName, slug },
+      };
     });
-    if (member.error) throw member.error;
 
-    const sub = await supabase.from("subscriptions").upsert({ workspace_id: workspace.data.id, tier: "starter", status: "inactive" });
-    if (sub.error) throw sub.error;
-
-    const token = await createSessionToken({ userId: createdUser.data.id, email: createdUser.data.email, workspaceId: workspace.data.id });
+    const token = await createSessionToken({
+      userId: created.user.id,
+      email: created.user.email,
+      workspaceId: created.workspace.id,
+    });
     setSessionCookie(res, token);
 
     sendJson(res, 201, {
-      user: { id: createdUser.data.id, email: createdUser.data.email, name },
-      workspace: workspace.data,
+      user: created.user,
+      workspace: created.workspace,
       tier: "starter",
     });
   } catch (error) {
+    if (error instanceof Error && error.message === "Email already registered") {
+      return badRequest(res, error.message);
+    }
     serverError(res, error);
   }
 }
-

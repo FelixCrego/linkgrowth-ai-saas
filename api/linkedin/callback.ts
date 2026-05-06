@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { appUrl } from "../_lib/env.js";
 import { exchangeLinkedInCode, fetchLinkedInMemberUrn } from "../_lib/linkedin.js";
 import { serverError } from "../_lib/http.js";
-import { getServiceSupabase } from "../_lib/supabase.js";
+import { sql } from "../_lib/db.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -21,21 +21,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const token = await exchangeLinkedInCode(code);
     const memberUrn = await fetchLinkedInMemberUrn(token.access_token);
 
-    const supabase = getServiceSupabase();
-    const upsert = await supabase.from("linkedin_accounts").upsert({
-      workspace_id: workspaceId,
-      user_id: userId,
-      linkedin_member_urn: memberUrn,
-      access_token: token.access_token,
-      expires_at: new Date(Date.now() + token.expires_in * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-
-    if (upsert.error) throw upsert.error;
+    await sql(
+      `insert into linkedin_accounts (workspace_id, user_id, linkedin_member_urn, access_token, expires_at, updated_at)
+       values ($1, $2, $3, $4, $5, now())
+       on conflict (workspace_id)
+       do update set
+        user_id = excluded.user_id,
+        linkedin_member_urn = excluded.linkedin_member_urn,
+        access_token = excluded.access_token,
+        expires_at = excluded.expires_at,
+        updated_at = now()`,
+      [workspaceId, userId, memberUrn, token.access_token, new Date(Date.now() + token.expires_in * 1000).toISOString()]
+    );
 
     res.status(302).setHeader("Location", `${appUrl()}/?linkedin=connected`).end();
   } catch (error) {
     serverError(res, error);
   }
 }
-

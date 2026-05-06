@@ -1,4 +1,4 @@
--- Run this in Supabase SQL editor.
+-- Run this in Neon SQL editor.
 
 create extension if not exists pgcrypto;
 
@@ -91,3 +91,4 @@ create index if not exists idx_workspace_members_user_id on workspace_members(us
 create index if not exists idx_generated_posts_workspace_id on generated_posts(workspace_id);
 create index if not exists idx_research_queries_workspace_id on research_queries(workspace_id);
 create index if not exists idx_voice_profiles_workspace_id on voice_profiles(workspace_id);
+

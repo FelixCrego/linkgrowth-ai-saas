@@ -3,11 +3,15 @@ import { z } from "zod";
 import { appUrl, requireEnv } from "../_lib/env.js";
 import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } from "../_lib/http.js";
 import { requireSession } from "../_lib/session.js";
-import { getServiceSupabase } from "../_lib/supabase.js";
 import { getStripe } from "../_lib/stripe.js";
 import { normalizeTier, tierPriceEnvName } from "../_lib/tiers.js";
+import { sql } from "../_lib/db.js";
 
 const schema = z.object({ tier: z.string() });
+
+type WorkspaceRow = { id: string; name: string };
+type UserRow = { email: string };
+type SubscriptionRow = { stripe_customer_id: string | null };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
@@ -24,35 +28,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const priceId = requireEnv(tierPriceEnvName(tier));
     const stripe = getStripe();
-    const supabase = getServiceSupabase();
 
-    const workspaceRes = await supabase.from("workspaces").select("id,name").eq("id", sessionUser.workspaceId).single();
-    if (workspaceRes.error) throw workspaceRes.error;
+    const workspaceRes = await sql<WorkspaceRow>("select id, name from workspaces where id = $1", [sessionUser.workspaceId]);
+    const userRes = await sql<UserRow>("select email from users where id = $1", [sessionUser.userId]);
+    const subRes = await sql<SubscriptionRow>(
+      "select stripe_customer_id from subscriptions where workspace_id = $1",
+      [sessionUser.workspaceId]
+    );
 
-    const userRes = await supabase.from("users").select("email").eq("id", sessionUser.userId).single();
-    if (userRes.error) throw userRes.error;
+    const workspace = workspaceRes.rows[0];
+    const user = userRes.rows[0];
+    if (!workspace || !user) return badRequest(res, "Workspace or user not found");
 
-    const subRes = await supabase
-      .from("subscriptions")
-      .select("stripe_customer_id")
-      .eq("workspace_id", sessionUser.workspaceId)
-      .maybeSingle();
-    if (subRes.error) throw subRes.error;
+    let customerId = subRes.rows[0]?.stripe_customer_id ?? null;
 
-    let customerId = subRes.data?.stripe_customer_id ?? null;
     if (!customerId) {
       const customer = await stripe.customers.create({
-        email: userRes.data.email,
-        name: workspaceRes.data.name,
+        email: user.email,
+        name: workspace.name,
         metadata: { workspaceId: sessionUser.workspaceId },
       });
       customerId = customer.id;
 
-      const upsert = await supabase.from("subscriptions").upsert({
-        workspace_id: sessionUser.workspaceId,
-        stripe_customer_id: customerId,
-      });
-      if (upsert.error) throw upsert.error;
+      await sql(
+        `insert into subscriptions (workspace_id, stripe_customer_id)
+         values ($1, $2)
+         on conflict (workspace_id)
+         do update set stripe_customer_id = excluded.stripe_customer_id, updated_at = now()`,
+        [sessionUser.workspaceId, customerId]
+      );
     }
 
     const checkout = await stripe.checkout.sessions.create({
@@ -74,4 +78,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     serverError(res, error);
   }
 }
-

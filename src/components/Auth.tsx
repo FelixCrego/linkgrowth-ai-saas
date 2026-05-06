@@ -1,29 +1,49 @@
 import { useState, FormEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Linkedin, Mail, Lock, ArrowRight, ShieldCheck, Loader2 } from "lucide-react";
+import { login, signUp } from "../lib/api";
 
 interface AuthProps {
-  onAuthComplete: () => void;
+  onAuthComplete: () => void | Promise<void>;
   initialMode?: 'login' | 'signup';
 }
 
 export const Auth = ({ onAuthComplete, initialMode = 'signup' }: AuthProps) => {
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     name: ""
   });
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate auth
-    setTimeout(() => {
+    setError("");
+
+    try {
+      if (mode === "signup") {
+        await signUp({
+          email: formData.email,
+          password: formData.password,
+          name: formData.name,
+          workspaceName: `${formData.name.split(" ")[0] || "New"} Workspace`,
+        });
+      } else {
+        await login({
+          email: formData.email,
+          password: formData.password,
+        });
+      }
+      await onAuthComplete();
       setLoading(false);
-      onAuthComplete();
-    }, 1500);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Authentication failed";
+      setError(message);
+      setLoading(false);
+    }
   };
 
   return (
@@ -99,6 +119,7 @@ export const Auth = ({ onAuthComplete, initialMode = 'signup' }: AuthProps) => {
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (mode === 'signup' ? "Initialize Account" : "Access Console")}
               {!loading && <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />}
             </button>
+            {error && <p className="text-xs text-red-400 pt-2">{error}</p>}
           </form>
 
           <div className="pt-6 border-t border-brand-border text-center">

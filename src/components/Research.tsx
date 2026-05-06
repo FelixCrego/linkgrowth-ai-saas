@@ -3,38 +3,25 @@ import { motion, AnimatePresence } from "motion/react";
 import { Search, Sparkles, Globe, Target, ArrowRight, Loader2, Info } from "lucide-react";
 import { INITIAL_TRENDS } from "../constants";
 import { Trend } from "../types";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { research } from "../lib/api";
 
 export const Research = () => {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Trend[]>(INITIAL_TRENDS);
+  const [error, setError] = useState("");
 
   const handleSearch = async () => {
     if (!query) return;
     setLoading(true);
+    setError("");
     
     try {
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.0-flash",
-        systemInstruction: "You are a professional LinkedIn growth strategist and market researcher. Provide trends in a valid JSON array format. Each object must have: topic (string), sentiment (string), reach (string), relevance (number 0-100), and explanation (string, brief relevance explanation).",
-      });
-
-      const result = await model.generateContent(`Analyze deep market trends for: ${query}. Focus on high-engagement LinkedIn topics.`);
-      const text = result.response.text();
-      // Try to extract JSON array
-      const match = text.match(/\[.*\]/s);
-      if (match) {
-        const parsed = JSON.parse(match[0]);
-        setResults(parsed);
-      } else {
-        // Fallback to mock with query context
-        setResults(INITIAL_TRENDS.map(t => ({ ...t, topic: `${query} ${t.topic}` })));
-      }
+      const result = await research(query);
+      setResults(result.trends);
       setLoading(false);
     } catch (e) {
-      console.error(e);
+      setError(e instanceof Error ? e.message : "Research failed");
       setLoading(false);
     }
   };
@@ -71,6 +58,7 @@ export const Research = () => {
           </button>
         </div>
       </div>
+      {error && <p className="text-center text-sm text-red-400">{error}</p>}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8">
         <AnimatePresence mode="popLayout">

@@ -11,18 +11,19 @@ import { Pricing } from "./components/Pricing";
 import { LandingPage } from "./components/LandingPage";
 import { Auth } from "./components/Auth";
 import { VoiceLab } from "./components/VoiceLab";
-
-const MOCK_TENANTS: Tenant[] = [
-  { id: '1', name: "Apex Growth", domain: "apex.linkgrow.ai", tier: SubscriptionTier.ELITE },
-  { id: '2', name: "Solo Venture", domain: "solo.linkgrow.ai", tier: SubscriptionTier.STARTER },
-  { id: '3', name: "Marketing Hub", domain: "m-hub.linkgrow.ai", tier: SubscriptionTier.PRO },
-];
+import { billingStatus, createCheckout, linkedinAuthUrl, logout, me, openBillingPortal, saveOnboarding } from "./lib/api";
 
 export default function App() {
   const [view, setView] = useState<AppView>(AppView.HOME);
+  const [loadingSession, setLoadingSession] = useState(true);
   const [isOnboarded, setIsOnboarded] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentTenant, setCurrentTenant] = useState<Tenant>(MOCK_TENANTS[0]);
+  const [currentTenant, setCurrentTenant] = useState<Tenant>({
+    id: "workspace",
+    name: "LinkGrowth Workspace",
+    domain: "workspace.linkgrow.ai",
+    tier: SubscriptionTier.STARTER,
+  });
   const [preferences, setPreferences] = useState<UserPreferences>({
     niche: "",
     industry: "",
@@ -30,6 +31,44 @@ export default function App() {
     tone: "Professional",
     frequency: "Daily"
   });
+
+  const hydrateSession = async () => {
+    const session = await me();
+    setIsAuthenticated(true);
+    setIsOnboarded(session.isOnboarded);
+    if (session.onboarding) {
+      setPreferences(session.onboarding);
+    }
+    const tier =
+      session.tier === "elite"
+        ? SubscriptionTier.ELITE
+        : session.tier === "pro"
+        ? SubscriptionTier.PRO
+        : SubscriptionTier.STARTER;
+    setCurrentTenant({
+      id: session.workspace.id,
+      name: session.workspace.name,
+      domain: `${session.workspace.slug}.linkgrow.ai`,
+      tier,
+    });
+    setView(session.isOnboarded ? AppView.DASHBOARD : AppView.ONBOARDING);
+  };
+
+  useEffect(() => {
+    const boot = async () => {
+      try {
+        await hydrateSession();
+      } catch {
+        setIsAuthenticated(false);
+        setIsOnboarded(false);
+        setView(AppView.HOME);
+      } finally {
+        setLoadingSession(false);
+      }
+    };
+
+    boot();
+  }, []);
 
   // Sync state with visibility
   useEffect(() => {
@@ -41,21 +80,82 @@ export default function App() {
     }
   }, [isAuthenticated, isOnboarded, view]);
 
-  const handleOnboardingComplete = (prefs: UserPreferences) => {
+  const handleOnboardingComplete = async (prefs: UserPreferences) => {
+    await saveOnboarding(prefs);
     setPreferences(prefs);
     setIsOnboarded(true);
   };
 
-  const handleUpgrade = (tier: SubscriptionTier) => {
-    setCurrentTenant(prev => ({ ...prev, tier }));
-    setView(AppView.DASHBOARD);
+  const handleUpgrade = async (tier: SubscriptionTier) => {
+    if (tier === SubscriptionTier.STARTER) {
+      setCurrentTenant((prev) => ({ ...prev, tier }));
+      setView(AppView.DASHBOARD);
+      return;
+    }
+
+    const requestedTier = tier === SubscriptionTier.PRO ? "pro" : "elite";
+    const checkout = await createCheckout(requestedTier);
+    window.location.href = checkout.url;
   };
 
   const switchTenant = () => {
-    const currentIndex = MOCK_TENANTS.findIndex(t => t.id === currentTenant.id);
-    const nextIndex = (currentIndex + 1) % MOCK_TENANTS.length;
-    setCurrentTenant(MOCK_TENANTS[nextIndex]);
+    setCurrentTenant((prev) => ({ ...prev }));
   };
+
+  const handleLogout = async () => {
+    await logout();
+    setIsAuthenticated(false);
+    setIsOnboarded(false);
+    setView(AppView.HOME);
+  };
+
+  const handleBillingOpen = async () => {
+    try {
+      const portal = await openBillingPortal();
+      window.location.href = portal.url;
+    } catch {
+      setView(AppView.PRICING);
+    }
+  };
+
+  const handleConnectLinkedin = async () => {
+    const auth = await linkedinAuthUrl();
+    const popup = window.open(auth.url, "_blank", "width=600,height=700");
+    if (!popup) {
+      window.location.href = auth.url;
+    }
+  };
+
+  const handleAuthComplete = async () => {
+    await hydrateSession();
+  };
+
+  useEffect(() => {
+    const syncTier = async () => {
+      if (!isAuthenticated) return;
+      try {
+        const status = await billingStatus();
+        const tier =
+          status.tier === "elite"
+            ? SubscriptionTier.ELITE
+            : status.tier === "pro"
+            ? SubscriptionTier.PRO
+            : SubscriptionTier.STARTER;
+        setCurrentTenant((prev) => ({ ...prev, tier }));
+      } catch {
+        // no-op
+      }
+    };
+    syncTier();
+  }, [isAuthenticated]);
+
+  if (loadingSession) {
+    return (
+      <div className="min-h-screen bg-brand-dark text-white flex items-center justify-center">
+        Loading session...
+      </div>
+    );
+  }
 
   const renderView = () => {
     // Paywall logic
@@ -93,19 +193,26 @@ export default function App() {
 
   // 2. Auth Case
   if (view === AppView.AUTH && !isAuthenticated) {
-    return <Auth onAuthComplete={() => setIsAuthenticated(true)} />;
+    return <Auth onAuthComplete={handleAuthComplete} />;
   }
 
   // 3. Onboarding Case
   if (isAuthenticated && !isOnboarded) {
-    return <Onboarding onComplete={handleOnboardingComplete} />;
+    return <Onboarding onComplete={handleOnboardingComplete} onConnectLinkedin={handleConnectLinkedin} />;
   }
 
   // 4. App Console Case
   return (
     <div className="min-h-screen bg-brand-dark text-slate-200 selection:bg-brand-accent selection:text-white">
       <div className="flex">
-        <Sidebar currentView={view} setView={setView} tenant={currentTenant} onSwitchTenant={switchTenant} />
+        <Sidebar
+          currentView={view}
+          setView={setView}
+          tenant={currentTenant}
+          onSwitchTenant={switchTenant}
+          onLogout={handleLogout}
+          onOpenBilling={handleBillingOpen}
+        />
         <div className="flex-1 flex flex-col ml-64">
           <header className="h-16 border-b border-brand-border px-8 flex items-center justify-between bg-brand-dark/50 backdrop-blur-md sticky top-0 z-40">
             <div className="flex items-center gap-4">
@@ -121,7 +228,7 @@ export default function App() {
             </div>
             <div className="flex items-center gap-6">
               <button 
-                onClick={() => setView(AppView.PRICING)}
+                onClick={handleBillingOpen}
                 className="text-[10px] font-bold text-brand-accent uppercase tracking-widest hover:underline"
               >
                 Subscription Manage

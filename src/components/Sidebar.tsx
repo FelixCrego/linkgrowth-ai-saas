@@ -17,9 +17,11 @@ interface SidebarProps {
   setView: (view: AppView) => void;
   tenant: Tenant;
   onSwitchTenant: () => void;
+  onLogout: () => void;
+  onOpenBilling: () => void;
 }
 
-export const Sidebar = ({ currentView, setView, tenant, onSwitchTenant }: SidebarProps) => {
+export const Sidebar = ({ currentView, setView, tenant, onSwitchTenant, onLogout, onOpenBilling }: SidebarProps) => {
   const menuItems = [
     { id: AppView.DASHBOARD, label: "Analytics", icon: BarChart3 },
     { id: AppView.RESEARCH, label: "Deep Research", icon: Search },
@@ -85,13 +87,13 @@ export const Sidebar = ({ currentView, setView, tenant, onSwitchTenant }: Sideba
         
         <div className="space-y-1">
           <button 
-            onClick={() => setView(AppView.PRICING)}
+            onClick={onOpenBilling}
             className="w-full flex items-center gap-3 px-4 py-2 text-xs text-slate-500 hover:bg-slate-800/40 rounded-lg transition-all"
           >
             <Settings className="w-4 h-4" />
             <span className="font-medium capitalize">Billing & Plans</span>
           </button>
-          <button className="w-full flex items-center gap-3 px-4 py-2 text-xs text-red-400/60 hover:bg-red-500/5 rounded-lg transition-all">
+          <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-2 text-xs text-red-400/60 hover:bg-red-500/5 rounded-lg transition-all">
             <LogOut className="w-4 h-4" />
             <span className="font-medium capitalize">Disconnect</span>
           </button>

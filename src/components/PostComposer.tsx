@@ -10,28 +10,25 @@ import {
   Copy,
   Check
 } from "lucide-react";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generatePost as generatePostApi, publishLinkedin } from "../lib/api";
 
 export const PostComposer = () => {
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [output, setOutput] = useState("");
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState("");
+  const [posting, setPosting] = useState(false);
 
   const generatePost = async () => {
     if (!prompt) return;
     setGenerating(true);
+    setError("");
     try {
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.0-flash",
-        systemInstruction: "You are a LinkedIn viral marketing expert. Write a high-engagement LinkedIn post based on the following input. Include hooks, white space, and 3 relevant hashtags.",
-      });
-
-      const result = await model.generateContent(prompt);
-      setOutput(result.response.text() || "Failed to generate post.");
+      const result = await generatePostApi(prompt);
+      setOutput(result.content || "Failed to generate post.");
     } catch (e) {
-      setOutput("Error generating content. Please try again.");
+      setError(e instanceof Error ? e.message : "Error generating content");
     }
     setGenerating(false);
   };
@@ -40,6 +37,19 @@ export const PostComposer = () => {
     navigator.clipboard.writeText(output);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const postToLinkedin = async () => {
+    if (!output) return;
+    setPosting(true);
+    setError("");
+    try {
+      await publishLinkedin(output);
+      setPosting(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "LinkedIn publish failed");
+      setPosting(false);
+    }
   };
 
   return (
@@ -86,6 +96,7 @@ export const PostComposer = () => {
             {generating ? "Synthesizing Draft..." : "Generate Post v2.1"}
           </button>
         </div>
+        {error && <p className="text-sm text-red-400">{error}</p>}
 
         <div className="grid grid-cols-3 gap-4">
           {[{l: "Tone", v: "Authority"}, {l: "Persona", v: "Growth Ops"}, {l: "Strategy", v: "Social Proof"}].map((t, idx) => (
@@ -133,11 +144,12 @@ export const PostComposer = () => {
               </button>
             </div>
             <button
-              disabled={!output}
+              onClick={postToLinkedin}
+              disabled={!output || posting}
               className="w-full bg-brand-accent text-white py-4 rounded-xl flex items-center justify-center gap-3 font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-brand-accent/20 hover:bg-brand-accent/90 transition-all disabled:opacity-20"
             >
               <Send className="w-4 h-4" />
-              Approve & Post to LinkedIn
+              {posting ? "Posting..." : "Approve & Post to LinkedIn"}
             </button>
           </div>
         </div>

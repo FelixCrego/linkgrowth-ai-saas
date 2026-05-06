@@ -4,12 +4,14 @@ import { Linkedin, ArrowRight, ShieldCheck, Zap, BarChart, CheckCircle2, Globe, 
 import { UserPreferences } from "../types";
 
 interface OnboardingProps {
-  onComplete: (prefs: UserPreferences) => void;
+  onComplete: (prefs: UserPreferences) => void | Promise<void>;
+  onConnectLinkedin: () => Promise<void>;
 }
 
-export const Onboarding = ({ onComplete }: OnboardingProps) => {
+export const Onboarding = ({ onComplete, onConnectLinkedin }: OnboardingProps) => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [prefs, setPrefs] = useState<UserPreferences>({
     niche: "",
     industry: "",
@@ -20,15 +22,23 @@ export const Onboarding = ({ onComplete }: OnboardingProps) => {
 
   const handleConnect = async () => {
     setLoading(true);
-    // Simulate OAuth Popup
-    setTimeout(() => {
+    setError("");
+    try {
+      await onConnectLinkedin();
       setLoading(false);
       setStep(2);
-    }, 1500);
+    } catch (e) {
+      setLoading(false);
+      setError(e instanceof Error ? e.message : "Could not connect LinkedIn");
+    }
   };
 
   const nextStep = () => setStep(step + 1);
-  const finish = () => onComplete(prefs);
+  const finish = async () => {
+    setLoading(true);
+    await onComplete(prefs);
+    setLoading(false);
+  };
 
   const renderStepContent = () => {
     switch (step) {
@@ -50,6 +60,7 @@ export const Onboarding = ({ onComplete }: OnboardingProps) => {
               {loading ? "Establishing Bridge..." : "Establish Connection"}
               {!loading && <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />}
             </button>
+            {error && <p className="text-xs text-red-400">{error}</p>}
           </div>
         );
       case 2:
@@ -173,6 +184,7 @@ export const Onboarding = ({ onComplete }: OnboardingProps) => {
             </div>
             <button
               onClick={finish}
+              disabled={loading}
               className="w-full bg-brand-accent text-white py-6 rounded-2xl flex items-center justify-center gap-3 font-bold uppercase text-[10px] tracking-[.3em] shadow-2xl shadow-brand-accent/20 hover:bg-brand-accent/90 transition-all group"
             >
               Enter Command Center <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />

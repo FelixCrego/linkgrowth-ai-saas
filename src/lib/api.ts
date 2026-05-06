@@ -1,0 +1,103 @@
+import { UserPreferences } from "../types";
+
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, {
+    ...init,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : {};
+
+  if (!response.ok) {
+    throw new Error(data.error ?? `Request failed: ${response.status}`);
+  }
+
+  return data as T;
+}
+
+export type SessionResponse = {
+  user: { id: string; email: string; full_name?: string; name?: string };
+  workspace: { id: string; name: string; slug: string };
+  tier: "starter" | "pro" | "elite";
+  subscriptionStatus: string;
+  onboarding: UserPreferences | null;
+  isOnboarded: boolean;
+};
+
+export async function signUp(payload: { email: string; password: string; name: string; workspaceName?: string }) {
+  return apiFetch("/api/auth/signup", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function login(payload: { email: string; password: string }) {
+  return apiFetch("/api/auth/login", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function me() {
+  return apiFetch<SessionResponse>("/api/auth/me", { method: "GET" });
+}
+
+export async function logout() {
+  return apiFetch<{ ok: boolean }>("/api/auth/logout", { method: "POST" });
+}
+
+export async function saveOnboarding(payload: UserPreferences) {
+  return apiFetch<{ ok: boolean }>("/api/user/onboarding", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function generatePost(prompt: string) {
+  return apiFetch<{ content: string }>("/api/ai/post", { method: "POST", body: JSON.stringify({ prompt }) });
+}
+
+export async function research(query: string) {
+  return apiFetch<{ trends: Array<{ topic: string; sentiment: string; reach: string; relevance: number; explanation: string }> }>(
+    "/api/ai/research",
+    { method: "POST", body: JSON.stringify({ query }) }
+  );
+}
+
+export async function analyzeVoice(trainingData: string) {
+  return apiFetch<{ profile: Record<string, string> }>("/api/ai/voice", {
+    method: "POST",
+    body: JSON.stringify({ trainingData }),
+  });
+}
+
+export async function createCheckout(tier: "starter" | "pro" | "elite") {
+  return apiFetch<{ url: string }>("/api/billing/checkout", { method: "POST", body: JSON.stringify({ tier }) });
+}
+
+export async function openBillingPortal() {
+  return apiFetch<{ url: string }>("/api/billing/portal", { method: "POST" });
+}
+
+export async function billingStatus() {
+  return apiFetch<{ tier: "starter" | "pro" | "elite"; status: string; currentPeriodEnd: string | null }>("/api/billing/status", {
+    method: "GET",
+  });
+}
+
+export async function linkedinAuthUrl() {
+  return apiFetch<{ url: string }>("/api/linkedin/auth-url", { method: "GET" });
+}
+
+export async function linkedinStatus() {
+  return apiFetch<{ connected: boolean; memberUrn: string | null; expiresAt: string | null }>("/api/linkedin/status", {
+    method: "GET",
+  });
+}
+
+export async function disconnectLinkedin() {
+  return apiFetch<{ ok: boolean }>("/api/linkedin/disconnect", { method: "POST" });
+}
+
+export async function publishLinkedin(text: string) {
+  return apiFetch<{ ok: boolean }>("/api/linkedin/publish", {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+}

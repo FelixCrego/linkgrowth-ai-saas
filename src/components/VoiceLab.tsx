@@ -1,31 +1,23 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import { Mic2, MessageSquare, Zap, Loader2, Sparkles, CheckCircle2, History } from "lucide-react";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { analyzeVoice as analyzeVoiceApi } from "../lib/api";
 
 export const VoiceLab = () => {
   const [trainingData, setTrainingData] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [voiceProfile, setVoiceProfile] = useState<any>(null);
+  const [error, setError] = useState("");
 
   const analyzeVoice = async () => {
     if (!trainingData) return;
     setIsAnalyzing(true);
+    setError("");
     try {
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.0-flash",
-        systemInstruction: "You are a linguistic expert. Analyze the provided text samples (LinkedIn posts) and create a JSON profile of the writer's voice. Include: tone (string), style (string), lengthPreference (string), emojiUsage (string), and hookStrategy (string).",
-      });
-
-      const result = await model.generateContent(`Analyze this writing style: ${trainingData}`);
-      const text = result.response.text();
-      const match = text.match(/\{.*\}/s);
-      if (match) {
-        setVoiceProfile(JSON.parse(match[0]));
-      }
+      const result = await analyzeVoiceApi(trainingData);
+      setVoiceProfile(result.profile);
     } catch (e) {
-      console.error(e);
+      setError(e instanceof Error ? e.message : "Voice analysis failed");
     } finally {
       setIsAnalyzing(false);
     }
@@ -47,6 +39,7 @@ export const VoiceLab = () => {
            <span className="text-[10px] text-slate-500 font-bold uppercase">Last Trained: 2 days ago</span>
         </div>
       </div>
+      {error && <p className="text-sm text-red-400">{error}</p>}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
         <div className="space-y-6">

@@ -10,7 +10,13 @@ import {
   Copy,
   Check
 } from "lucide-react";
-import { generateImage as generateImageApi, generatePost as generatePostApi, publishLinkedin, type PostType } from "../lib/api";
+import {
+  generateImage as generateImageApi,
+  generatePost as generatePostApi,
+  publishLinkedin,
+  type DeepResearchPack,
+  type PostType,
+} from "../lib/api";
 
 type GeneratedImage = {
   imageBase64: string;
@@ -42,6 +48,7 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
   const [regenerating, setRegenerating] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
   const [output, setOutput] = useState("");
+  const [research, setResearch] = useState<DeepResearchPack | null>(null);
   const [generatedImage, setGeneratedImage] = useState<GeneratedImage | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
@@ -51,6 +58,7 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
     if (!initialPrompt) return;
     setPrompt(initialPrompt);
     setOutput("");
+    setResearch(null);
     setGeneratedImage(null);
     setError("");
   }, [initialPrompt]);
@@ -72,6 +80,7 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
         regenerateFrom: regenerate ? output : undefined,
       });
       setOutput(result.content || "Failed to generate post.");
+      setResearch(result.research ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error generating content");
     }
@@ -88,6 +97,20 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
     setError("");
     try {
       const result = await generateImageApi(prompt);
+      setGeneratedImage({ imageBase64: result.imageBase64, mimeType: result.mimeType });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error generating image");
+    }
+    setGeneratingImage(false);
+  };
+
+  const generateImageFromSuggestion = async (imagePrompt: string) => {
+    if (!imagePrompt) return;
+    setPrompt((prev) => (prev.trim() ? prev : imagePrompt));
+    setGeneratingImage(true);
+    setError("");
+    try {
+      const result = await generateImageApi(imagePrompt);
       setGeneratedImage({ imageBase64: result.imageBase64, mimeType: result.mimeType });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error generating image");
@@ -204,6 +227,33 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
           </button>
         </div>
         {error && <p className="text-sm text-red-400">{error}</p>}
+        {research && (
+          <div className="border border-brand-border rounded-xl bg-slate-900/40 p-4 space-y-3">
+            <p className="text-[10px] uppercase tracking-widest font-bold text-brand-accent">Deep Research Signals</p>
+            <p className="text-xs text-slate-300"><span className="text-slate-500">Focus:</span> {research.focusTopic}</p>
+            <p className="text-xs text-slate-300"><span className="text-slate-500">Trending:</span> {(research.trendingTopics || []).slice(0, 3).join(" • ")}</p>
+            <p className="text-xs text-slate-300"><span className="text-slate-500">Pain Points:</span> {(research.painPoints || []).slice(0, 3).join(" • ")}</p>
+            <p className="text-xs text-slate-300"><span className="text-slate-500">Angle:</span> {research.recommendedAngle}</p>
+            {Array.isArray(research.imageSuggestions) && research.imageSuggestions.length > 0 && (
+              <div className="space-y-2 pt-2">
+                <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Suggested Images</p>
+                {research.imageSuggestions.slice(0, 3).map((suggestion, index) => (
+                  <div key={`${suggestion.title}-${index}`} className="border border-brand-border/60 rounded-lg p-3 bg-slate-900/50">
+                    <p className="text-xs font-semibold text-white">{suggestion.title}</p>
+                    <p className="text-[11px] text-slate-400 mt-1">{suggestion.reason}</p>
+                    <button
+                      onClick={() => generateImageFromSuggestion(suggestion.prompt)}
+                      disabled={generatingImage}
+                      className="mt-2 text-[10px] uppercase tracking-widest font-bold text-brand-accent hover:underline disabled:opacity-40"
+                    >
+                      {generatingImage ? "Generating..." : "Generate This Image"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-3 gap-4">
           {[{l: "Tone", v: "Authority"}, {l: "Persona", v: "Growth Ops"}, {l: "Strategy", v: "Social Proof"}].map((t, idx) => (

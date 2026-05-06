@@ -68,12 +68,26 @@ export async function saveOnboarding(payload: UserPreferences) {
 }
 
 export type PostType = "thought_leadership" | "how_to" | "story" | "case_study" | "contrarian" | "listicle";
+export type DeepResearchPack = {
+  focusTopic: string;
+  trendingTopics: string[];
+  painPoints: string[];
+  controversialAngles: string[];
+  hookIdeas: string[];
+  keywords: string[];
+  recommendedAngle: string;
+  imageSuggestions?: Array<{
+    title: string;
+    prompt: string;
+    reason: string;
+  }>;
+};
 
 export async function generatePost(
   prompt: string,
   options?: { postType?: PostType; tone?: string; voiceStyle?: string; regenerateFrom?: string }
 ) {
-  return apiFetch<{ content: string }>("/api/ai/post", {
+  return apiFetch<{ content: string; research?: DeepResearchPack }>("/api/ai/post", {
     method: "POST",
     body: JSON.stringify({
       prompt,

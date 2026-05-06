@@ -3,7 +3,7 @@ import { z } from "zod";
 import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } from "../_lib/http.js";
 import { requireSession } from "../_lib/session.js";
 import { sql } from "../_lib/db.js";
-import { generateText } from "../_lib/openai.js";
+import { generateJson, generateText } from "../_lib/openai.js";
 import { getWorkspaceSubscription } from "../_lib/subscription.js";
 
 const postTypeSchema = z.enum([
@@ -41,6 +41,21 @@ type VoiceProfileRow = {
     emojiUsage?: string;
     hookStrategy?: string;
   };
+};
+
+type DeepResearchPack = {
+  focusTopic: string;
+  trendingTopics: string[];
+  painPoints: string[];
+  controversialAngles: string[];
+  hookIdeas: string[];
+  keywords: string[];
+  recommendedAngle: string;
+  imageSuggestions: Array<{
+    title: string;
+    prompt: string;
+    reason: string;
+  }>;
 };
 
 function postTypeInstruction(postType: PostType): string {
@@ -103,9 +118,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? `Create a fresh variation that is clearly different from the previous draft below. Use a new opening line, different structure, and different hashtags.\n\nPrevious Draft:\n${parsed.data.regenerateFrom}`
       : "";
 
+    // Step 1: Deep research extraction to avoid generic post outputs.
+    const research = await generateJson<DeepResearchPack>(
+      "Return JSON only with keys: focusTopic, trendingTopics (array), painPoints (array), controversialAngles (array), hookIdeas (array), keywords (array), recommendedAngle, imageSuggestions (array of objects with title, prompt, reason). No markdown.",
+      `Research high-engagement LinkedIn conversation patterns for this business context.
+Business Context:
+${context}
+
+User Seed Prompt:
+${parsed.data.prompt}
+
+Return actionable trends, pain points, hooks, and 3 specific image suggestions that would increase post engagement on LinkedIn.`
+    );
+
+    await sql("insert into research_queries (workspace_id, user_id, query, result_json) values ($1, $2, $3, $4::jsonb)", [
+      session.workspaceId,
+      session.userId,
+      `content-engine:${parsed.data.prompt}`,
+      JSON.stringify(research),
+    ]);
+
     const content = await generateText(
       "You are a LinkedIn growth copywriter. Use the provided business context as a hard constraint. Write an engaging LinkedIn post with a strong hook, clear whitespace formatting, tactical insight, a concrete CTA, and 3 relevant hashtags. Avoid generic advice and keep the post specific to the niche and target audience.",
-      `Business Context:\n${context}\n\nTone:\nUse this tone as a hard constraint: ${selectedTone}.\n\nVoice:\n${voiceInstruction}\n\nPost Type:\n${postTypeInstruction(postType)}\n\nPrompt:\n${parsed.data.prompt}\n\n${variationInstruction}`
+      `Business Context:
+${context}
+
+Tone:
+Use this tone as a hard constraint: ${selectedTone}.
+
+Voice:
+${voiceInstruction}
+
+Post Type:
+${postTypeInstruction(postType)}
+
+Deep Research Signals:
+Focus Topic: ${research.focusTopic}
+Trending Topics: ${(research.trendingTopics ?? []).join(" | ")}
+Pain Points: ${(research.painPoints ?? []).join(" | ")}
+Controversial Angles: ${(research.controversialAngles ?? []).join(" | ")}
+Hook Ideas: ${(research.hookIdeas ?? []).join(" | ")}
+Keywords: ${(research.keywords ?? []).join(" | ")}
+Recommended Angle: ${research.recommendedAngle}
+
+Prompt:
+${parsed.data.prompt}
+
+${variationInstruction}`
     );
 
     await sql("insert into generated_posts (workspace_id, user_id, prompt, content) values ($1, $2, $3, $4)", [
@@ -115,7 +174,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       content,
     ]);
 
-    sendJson(res, 200, { content });
+    sendJson(res, 200, { content, research });
   } catch (error) {
     serverError(res, error);
   }

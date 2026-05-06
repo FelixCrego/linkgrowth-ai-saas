@@ -5,7 +5,16 @@ import { requireSession } from "../_lib/session.js";
 import { publishLinkedInPost } from "../_lib/linkedin.js";
 import { sql } from "../_lib/db.js";
 
-const schema = z.object({ text: z.string().min(3).max(3000) });
+const schema = z
+  .object({
+    text: z.string().min(3).max(3000),
+    imageBase64: z.string().min(100).optional(),
+    imageMimeType: z.string().regex(/^image\/(png|jpeg|jpg|webp)$/i).optional(),
+  })
+  .refine((value) => !value.imageMimeType || Boolean(value.imageBase64), {
+    message: "imageBase64 is required when imageMimeType is provided",
+    path: ["imageBase64"],
+  });
 
 type LinkedInRow = { access_token: string; linkedin_member_urn: string };
 
@@ -27,7 +36,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const account = accountRes.rows[0];
     if (!account) return badRequest(res, "LinkedIn is not connected");
 
-    await publishLinkedInPost(account.access_token, account.linkedin_member_urn, parsed.data.text);
+    await publishLinkedInPost(account.access_token, account.linkedin_member_urn, parsed.data.text, {
+      base64: parsed.data.imageBase64,
+      mimeType: parsed.data.imageMimeType,
+    });
     sendJson(res, 200, { ok: true });
   } catch (error) {
     serverError(res, error);

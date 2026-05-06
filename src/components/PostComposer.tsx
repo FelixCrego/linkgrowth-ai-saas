@@ -10,12 +10,19 @@ import {
   Copy,
   Check
 } from "lucide-react";
-import { generatePost as generatePostApi, publishLinkedin } from "../lib/api";
+import { generateImage as generateImageApi, generatePost as generatePostApi, publishLinkedin } from "../lib/api";
+
+type GeneratedImage = {
+  imageBase64: string;
+  mimeType: string;
+};
 
 export const PostComposer = () => {
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [generatingImage, setGeneratingImage] = useState(false);
   const [output, setOutput] = useState("");
+  const [generatedImage, setGeneratedImage] = useState<GeneratedImage | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const [posting, setPosting] = useState(false);
@@ -33,6 +40,19 @@ export const PostComposer = () => {
     setGenerating(false);
   };
 
+  const generateImage = async () => {
+    if (!prompt) return;
+    setGeneratingImage(true);
+    setError("");
+    try {
+      const result = await generateImageApi(prompt);
+      setGeneratedImage({ imageBase64: result.imageBase64, mimeType: result.mimeType });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error generating image");
+    }
+    setGeneratingImage(false);
+  };
+
   const copyToClipboard = () => {
     navigator.clipboard.writeText(output);
     setCopied(true);
@@ -44,7 +64,11 @@ export const PostComposer = () => {
     setPosting(true);
     setError("");
     try {
-      await publishLinkedin(output);
+      await publishLinkedin({
+        text: output,
+        imageBase64: generatedImage?.imageBase64,
+        imageMimeType: generatedImage?.mimeType,
+      });
       setPosting(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "LinkedIn publish failed");
@@ -78,8 +102,13 @@ export const PostComposer = () => {
               onChange={(e) => setPrompt(e.target.value)}
             />
             <div className="absolute bottom-4 right-4 flex gap-2">
-              <button className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all border border-slate-700/50 rounded-lg">
-                <ImageIcon className="w-4 h-4" />
+              <button
+                onClick={generateImage}
+                disabled={generatingImage || !prompt}
+                title="Generate image from prompt"
+                className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all border border-slate-700/50 rounded-lg disabled:opacity-50"
+              >
+                {generatingImage ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
               </button>
               <button className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all border border-slate-700/50 rounded-lg">
                 <MessageSquare className="w-4 h-4" />
@@ -121,6 +150,15 @@ export const PostComposer = () => {
           </div>
           
           <div className="flex-1 p-8 overflow-y-auto whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-300">
+            {generatedImage && (
+              <motion.img
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                src={`data:${generatedImage.mimeType};base64,${generatedImage.imageBase64}`}
+                alt="Generated post image"
+                className="mb-6 w-full rounded-2xl border border-brand-border object-cover"
+              />
+            )}
             {output || (
               <div className="h-full flex flex-col items-center justify-center opacity-10">
                 <Sparkles className="w-16 h-16 mb-4" />

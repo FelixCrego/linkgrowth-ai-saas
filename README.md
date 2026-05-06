@@ -26,6 +26,7 @@ Required for core app:
 - `SESSION_SECRET`
 - `DATABASE_URL`
 - `OPENAI_API_KEY`
+- `OPENAI_IMAGE_MODEL` (optional, defaults to `gpt-image-1`)
 
 Required for billing:
 - `STRIPE_SECRET_KEY`
@@ -64,7 +65,7 @@ In LinkedIn developer portal:
 ## API Routes
 - Auth: `/api/auth/signup`, `/api/auth/login`, `/api/auth/me`, `/api/auth/logout`
 - Onboarding: `/api/user/onboarding`
-- AI: `/api/ai/research`, `/api/ai/post`, `/api/ai/voice`
+- AI: `/api/ai/research`, `/api/ai/post`, `/api/ai/image`, `/api/ai/voice`
 - Billing: `/api/billing/checkout`, `/api/billing/portal`, `/api/billing/status`, `/api/billing/webhook`
 - LinkedIn: `/api/linkedin/auth-url`, `/api/linkedin/callback`, `/api/linkedin/status`, `/api/linkedin/disconnect`, `/api/linkedin/publish`
 - Health: `/api/health`

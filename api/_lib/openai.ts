@@ -82,3 +82,52 @@ export async function generateJson<T>(systemInstruction: string, userPrompt: str
 
   return JSON.parse(content) as T;
 }
+
+type ImageGenerationResponse = {
+  data?: Array<{
+    b64_json?: string;
+  }>;
+  error?: {
+    message?: string;
+  };
+};
+
+export async function generateImageBase64(prompt: string): Promise<string> {
+  const apiKey = requireEnv("OPENAI_API_KEY");
+  const model = optionalEnv("OPENAI_IMAGE_MODEL") ?? "gpt-image-1";
+
+  const response = await fetch("https://api.openai.com/v1/images/generations", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      prompt,
+      size: "1024x1024",
+      quality: "medium",
+      response_format: "b64_json",
+    }),
+  });
+
+  const raw = await response.text();
+  let parsed: ImageGenerationResponse = {};
+  try {
+    parsed = JSON.parse(raw) as ImageGenerationResponse;
+  } catch {
+    parsed = {};
+  }
+
+  if (!response.ok) {
+    const errorMessage = parsed.error?.message ?? `OpenAI image generation failed: ${response.status}`;
+    throw new Error(errorMessage);
+  }
+
+  const base64 = parsed.data?.[0]?.b64_json;
+  if (!base64) {
+    throw new Error("OpenAI returned empty image data");
+  }
+
+  return base64;
+}

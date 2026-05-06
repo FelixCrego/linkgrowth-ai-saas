@@ -53,6 +53,13 @@ export async function generatePost(prompt: string) {
   return apiFetch<{ content: string }>("/api/ai/post", { method: "POST", body: JSON.stringify({ prompt }) });
 }
 
+export async function generateImage(prompt: string) {
+  return apiFetch<{ imageBase64: string; mimeType: string }>("/api/ai/image", {
+    method: "POST",
+    body: JSON.stringify({ prompt }),
+  });
+}
+
 export async function research(query: string) {
   return apiFetch<{ trends: Array<{ topic: string; sentiment: string; reach: string; relevance: number; explanation: string }> }>(
     "/api/ai/research",
@@ -95,9 +102,9 @@ export async function disconnectLinkedin() {
   return apiFetch<{ ok: boolean }>("/api/linkedin/disconnect", { method: "POST" });
 }
 
-export async function publishLinkedin(text: string) {
+export async function publishLinkedin(payload: { text: string; imageBase64?: string; imageMimeType?: string }) {
   return apiFetch<{ ok: boolean }>("/api/linkedin/publish", {
     method: "POST",
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(payload),
   });
 }

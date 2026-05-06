@@ -227,7 +227,11 @@ export default function App() {
   };
 
   const handleGenerateFromResearch = (trend: Trend) => {
-    const prompt = `Create a high-engagement LinkedIn post about "${trend.topic}" for my niche. Context: reach is ${trend.reach}, sentiment is ${trend.sentiment}. Include a bold hook, tactical takeaways, and a CTA.`;
+    const niche = preferences.niche || "my niche";
+    const industry = preferences.industry || "my industry";
+    const targetAudience = preferences.targetAudience || "my target audience";
+    const tone = preferences.tone || "Professional";
+    const prompt = `Create a high-engagement LinkedIn post about "${trend.topic}" for niche "${niche}" in industry "${industry}", targeting "${targetAudience}", using "${tone}" tone. Trend context: reach is ${trend.reach}, sentiment is ${trend.sentiment}. Include a bold hook, tactical takeaways, and a CTA.`;
     setComposerInitialPrompt(prompt);
     setView(AppView.COMPOSER);
   };

@@ -8,6 +8,14 @@ import { getWorkspaceSubscription } from "../_lib/subscription.js";
 
 const schema = z.object({ prompt: z.string().min(5) });
 
+type OnboardingRow = {
+  niche: string;
+  industry: string;
+  target_audience: string;
+  tone: string;
+  frequency: string;
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
 
@@ -31,9 +39,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    const onboardingRes = await sql<OnboardingRow>(
+      "select niche, industry, target_audience, tone, frequency from onboarding_profiles where workspace_id = $1 limit 1",
+      [session.workspaceId]
+    );
+    const onboarding = onboardingRes.rows[0];
+
+    const context = onboarding
+      ? `Niche: ${onboarding.niche}\nIndustry: ${onboarding.industry}\nTarget Audience: ${onboarding.target_audience}\nPreferred Tone: ${onboarding.tone}\nPosting Frequency: ${onboarding.frequency}`
+      : "Niche context is unavailable for this workspace.";
+
     const content = await generateText(
-      "You are a LinkedIn viral marketing expert. Write an engaging LinkedIn post with hook, whitespace, CTA, and 3 relevant hashtags.",
-      parsed.data.prompt
+      "You are a LinkedIn growth copywriter. Use the provided business context as a hard constraint. Write an engaging LinkedIn post with a strong hook, clear whitespace formatting, tactical insight, a concrete CTA, and 3 relevant hashtags. Avoid generic advice and keep the post specific to the niche and target audience.",
+      `Business Context:\n${context}\n\nPrompt:\n${parsed.data.prompt}`
     );
 
     await sql("insert into generated_posts (workspace_id, user_id, prompt, content) values ($1, $2, $3, $4)", [

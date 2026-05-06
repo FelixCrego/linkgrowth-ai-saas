@@ -10,7 +10,7 @@ import {
   Copy,
   Check
 } from "lucide-react";
-import { generateImage as generateImageApi, generatePost as generatePostApi, publishLinkedin } from "../lib/api";
+import { generateImage as generateImageApi, generatePost as generatePostApi, publishLinkedin, type PostType } from "../lib/api";
 
 type GeneratedImage = {
   imageBase64: string;
@@ -21,9 +21,20 @@ interface PostComposerProps {
   initialPrompt?: string;
 }
 
+const POST_TYPE_OPTIONS: Array<{ value: PostType; label: string }> = [
+  { value: "thought_leadership", label: "Thought Leadership" },
+  { value: "how_to", label: "How-To" },
+  { value: "story", label: "Story" },
+  { value: "case_study", label: "Case Study" },
+  { value: "contrarian", label: "Contrarian" },
+  { value: "listicle", label: "Listicle" },
+];
+
 export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
   const [prompt, setPrompt] = useState("");
+  const [postType, setPostType] = useState<PostType>("thought_leadership");
   const [generating, setGenerating] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
   const [output, setOutput] = useState("");
   const [generatedImage, setGeneratedImage] = useState<GeneratedImage | null>(null);
@@ -39,17 +50,29 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
     setError("");
   }, [initialPrompt]);
 
-  const generatePost = async () => {
+  const generatePost = async (regenerate = false) => {
     if (!prompt) return;
-    setGenerating(true);
+    if (regenerate && !output) return;
+    if (regenerate) {
+      setRegenerating(true);
+    } else {
+      setGenerating(true);
+    }
     setError("");
     try {
-      const result = await generatePostApi(prompt);
+      const result = await generatePostApi(prompt, {
+        postType,
+        regenerateFrom: regenerate ? output : undefined,
+      });
       setOutput(result.content || "Failed to generate post.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error generating content");
     }
-    setGenerating(false);
+    if (regenerate) {
+      setRegenerating(false);
+    } else {
+      setGenerating(false);
+    }
   };
 
   const generateImage = async () => {
@@ -105,6 +128,20 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
               <span className="text-[9px] font-bold text-brand-accent uppercase tracking-[0.1em]">Voice DNA Sync Active</span>
             </div>
           </div>
+          <div className="flex items-center gap-3">
+            <label className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Post Type</label>
+            <select
+              value={postType}
+              onChange={(e) => setPostType(e.target.value as PostType)}
+              className="bg-slate-900 border border-brand-border rounded-lg px-3 py-2 text-xs text-white"
+            >
+              {POST_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="relative group/area">
             <div className="absolute -inset-0.5 bg-brand-accent/10 blur rounded-2xl opacity-0 group-focus-within/area:opacity-100 transition-opacity"></div>
             <textarea
@@ -129,8 +166,8 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
           </div>
           
           <button
-            onClick={generatePost}
-            disabled={generating || !prompt}
+            onClick={() => generatePost(false)}
+            disabled={generating || regenerating || !prompt}
             className="w-full bg-brand-accent text-white py-4 rounded-xl flex items-center justify-center gap-3 font-bold uppercase text-[10px] tracking-[0.2em] shadow-xl shadow-brand-accent/10 hover:shadow-brand-accent/20 transition-all disabled:opacity-50"
           >
             {generating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
@@ -194,8 +231,16 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
               </button>
             </div>
             <button
+              onClick={() => generatePost(true)}
+              disabled={!output || generating || regenerating}
+              className="w-full bg-slate-800 border border-slate-700/50 text-slate-300 py-3 rounded-xl flex items-center justify-center gap-2 font-bold uppercase text-[10px] tracking-widest hover:text-white transition-all disabled:opacity-30"
+            >
+              <RefreshCw className={`w-4 h-4 ${regenerating ? "animate-spin" : ""}`} />
+              {regenerating ? "Regenerating..." : "Regenerate With AI"}
+            </button>
+            <button
               onClick={postToLinkedin}
-              disabled={!output || posting}
+              disabled={!output || posting || generating || regenerating}
               className="w-full bg-brand-accent text-white py-4 rounded-xl flex items-center justify-center gap-3 font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-brand-accent/20 hover:bg-brand-accent/90 transition-all disabled:opacity-20"
             >
               <Send className="w-4 h-4" />

@@ -6,7 +6,22 @@ import { sql } from "../_lib/db.js";
 import { generateText } from "../_lib/openai.js";
 import { getWorkspaceSubscription } from "../_lib/subscription.js";
 
-const schema = z.object({ prompt: z.string().min(5) });
+const postTypeSchema = z.enum([
+  "thought_leadership",
+  "how_to",
+  "story",
+  "case_study",
+  "contrarian",
+  "listicle",
+]);
+
+const schema = z.object({
+  prompt: z.string().min(5),
+  postType: postTypeSchema.optional(),
+  regenerateFrom: z.string().min(20).optional(),
+});
+
+type PostType = z.infer<typeof postTypeSchema>;
 
 type OnboardingRow = {
   niche: string;
@@ -15,6 +30,15 @@ type OnboardingRow = {
   tone: string;
   frequency: string;
 };
+
+function postTypeInstruction(postType: PostType): string {
+  if (postType === "thought_leadership") return "Format as a thought leadership post with a strong perspective and one sharp insight.";
+  if (postType === "how_to") return "Format as a how-to post with clear steps and practical execution guidance.";
+  if (postType === "story") return "Format as a short narrative story post with a lesson and business takeaway.";
+  if (postType === "case_study") return "Format as a mini case study with context, action, and measurable outcome.";
+  if (postType === "contrarian") return "Format as a contrarian hot-take post that challenges a common belief with evidence.";
+  return "Format as a listicle post with concise, high-value bullet points.";
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
@@ -49,9 +73,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? `Niche: ${onboarding.niche}\nIndustry: ${onboarding.industry}\nTarget Audience: ${onboarding.target_audience}\nPreferred Tone: ${onboarding.tone}\nPosting Frequency: ${onboarding.frequency}`
       : "Niche context is unavailable for this workspace.";
 
+    const postType = parsed.data.postType ?? "thought_leadership";
+    const variationInstruction = parsed.data.regenerateFrom
+      ? `Create a fresh variation that is clearly different from the previous draft below. Use a new opening line, different structure, and different hashtags.\n\nPrevious Draft:\n${parsed.data.regenerateFrom}`
+      : "";
+
     const content = await generateText(
       "You are a LinkedIn growth copywriter. Use the provided business context as a hard constraint. Write an engaging LinkedIn post with a strong hook, clear whitespace formatting, tactical insight, a concrete CTA, and 3 relevant hashtags. Avoid generic advice and keep the post specific to the niche and target audience.",
-      `Business Context:\n${context}\n\nPrompt:\n${parsed.data.prompt}`
+      `Business Context:\n${context}\n\nPost Type:\n${postTypeInstruction(postType)}\n\nPrompt:\n${parsed.data.prompt}\n\n${variationInstruction}`
     );
 
     await sql("insert into generated_posts (workspace_id, user_id, prompt, content) values ($1, $2, $3, $4)", [

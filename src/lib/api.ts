@@ -67,8 +67,16 @@ export async function saveOnboarding(payload: UserPreferences) {
   return apiFetch<{ ok: boolean }>("/api/user/onboarding", { method: "POST", body: JSON.stringify(payload) });
 }
 
-export async function generatePost(prompt: string) {
-  return apiFetch<{ content: string }>("/api/ai/post", { method: "POST", body: JSON.stringify({ prompt }) });
+export type PostType = "thought_leadership" | "how_to" | "story" | "case_study" | "contrarian" | "listicle";
+
+export async function generatePost(
+  prompt: string,
+  options?: { postType?: PostType; regenerateFrom?: string }
+) {
+  return apiFetch<{ content: string }>("/api/ai/post", {
+    method: "POST",
+    body: JSON.stringify({ prompt, postType: options?.postType, regenerateFrom: options?.regenerateFrom }),
+  });
 }
 
 export async function generateImage(prompt: string) {

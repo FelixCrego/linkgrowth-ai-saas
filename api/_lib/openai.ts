@@ -10,6 +10,10 @@ export type WebSource = {
   url: string;
 };
 
+type WebResearchOptions = {
+  requireSources?: boolean;
+};
+
 type ChatCompletionResponse = {
   choices?: Array<{
     message?: {
@@ -209,34 +213,60 @@ export async function generateJson<T>(systemInstruction: string, userPrompt: str
 
 export async function generateWebResearchJson<T>(
   systemInstruction: string,
-  userPrompt: string
+  userPrompt: string,
+  options: WebResearchOptions = {}
 ): Promise<{ data: T; sources: WebSource[] }> {
-  const researchModel = optionalEnv("OPENAI_RESEARCH_MODEL") ?? optionalEnv("OPENAI_MODEL") ?? "gpt-4o-mini";
+  const configuredResearchModel = optionalEnv("OPENAI_RESEARCH_MODEL");
+  const configuredDefaultModel = optionalEnv("OPENAI_MODEL");
+  const modelCandidates = Array.from(
+    new Set(
+      [configuredResearchModel, configuredDefaultModel, "o4-mini-deep-research", "gpt-4o-mini"].filter(
+        (value): value is string => !!value
+      )
+    )
+  );
 
-  try {
-    const payload = await callResponsesApi({
-      model: researchModel,
-      input: [
-        { role: "system", content: systemInstruction },
-        { role: "user", content: userPrompt },
-      ],
-      tools: [{ type: "web_search_preview" }],
-      tool_choice: "auto",
-      temperature: 0.2,
-    });
+  let lastError: Error | null = null;
 
-    const text = extractResponseOutputText(payload);
-    return {
-      data: parseJsonFromText<T>(text),
-      sources: collectWebSources(payload),
-    };
-  } catch {
-    // Graceful fallback for projects without tool-enabled models.
-    return {
-      data: await generateJson<T>(systemInstruction, userPrompt),
-      sources: [],
-    };
+  for (const model of modelCandidates) {
+    try {
+      const payload = await callResponsesApi({
+        model,
+        input: [
+          { role: "system", content: systemInstruction },
+          { role: "user", content: userPrompt },
+        ],
+        tools: [{ type: "web_search_preview" }],
+        include: ["web_search_call.action.sources"],
+        tool_choice: "auto",
+        temperature: 0.2,
+      });
+
+      const text = extractResponseOutputText(payload);
+      const sources = collectWebSources(payload);
+      if (options.requireSources && sources.length === 0) {
+        lastError = new Error(`No web sources returned with model ${model}`);
+        continue;
+      }
+
+      return {
+        data: parseJsonFromText<T>(text),
+        sources,
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error("Web research request failed");
+    }
   }
+
+  if (options.requireSources) {
+    throw lastError ?? new Error("Deep research failed to return web-backed sources");
+  }
+
+  // Optional fallback mode for non-critical uses.
+  return {
+    data: await generateJson<T>(systemInstruction, userPrompt),
+    sources: [],
+  };
 }
 
 type ImageGenerationResponse = {

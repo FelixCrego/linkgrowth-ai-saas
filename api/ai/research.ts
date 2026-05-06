@@ -35,6 +35,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       "Return JSON only. Prefer an object with key 'trends' containing an array. Each trend must include topic, sentiment, reach, relevance (0-100), explanation.",
       `Use live web research to find current LinkedIn growth trends for: ${parsed.data.query}.
 Prioritize specific, timely trends and avoid generic advice.`
+      ,
+      { requireSources: true }
     );
 
     const payload = researchResult.data;

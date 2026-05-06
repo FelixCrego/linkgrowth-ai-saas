@@ -68,12 +68,48 @@ function postTypeInstruction(postType: PostType): string {
   return "Format as a listicle post with concise, high-value bullet points.";
 }
 
-function isOpenClawContext(value: string): boolean {
-  return /\bopen[\s-]?claw\b/i.test(value);
+function normalizeLower(value: string): string {
+  return value.toLowerCase();
 }
 
-function mentionsOpenClaw(value: string): boolean {
-  return /\bopen[\s-]?claw\b/i.test(value);
+function extractAnchors(prompt: string, context: string): string[] {
+  const fromPrompt = prompt
+    .split(/[\n,.|:;!?]/)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 4 && item.length <= 80);
+
+  const fromContext = context
+    .split("\n")
+    .map((item) => item.replace(/^.*?:\s*/, "").trim())
+    .filter((item) => item.length >= 4 && item.length <= 80);
+
+  const blacklist = new Set(["professional", "daily", "weekly", "industry", "niche", "target audience"]);
+  const merged = [...fromPrompt, ...fromContext]
+    .map((value) => value.replace(/^["']|["']$/g, ""))
+    .filter((value) => !blacklist.has(value.toLowerCase()));
+
+  return Array.from(new Set(merged)).slice(0, 6);
+}
+
+function containsAnyAnchor(content: string, anchors: string[]): boolean {
+  const lower = normalizeLower(content);
+  return anchors.some((anchor) => {
+    const needle = normalizeLower(anchor);
+    return needle.length >= 4 && lower.includes(needle);
+  });
+}
+
+function containsResearchSignals(content: string, research: DeepResearchPack): boolean {
+  const lower = normalizeLower(content);
+  const candidates = [
+    ...(research.trendingTopics ?? []).slice(0, 3),
+    ...(research.painPoints ?? []).slice(0, 3),
+    ...(research.keywords ?? []).slice(0, 3),
+  ]
+    .map((value) => value.trim())
+    .filter((value) => value.length >= 4);
+
+  return candidates.some((value) => lower.includes(normalizeLower(value)));
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -143,13 +179,11 @@ Hard requirements:
 - Return only structured JSON in the requested shape.
 - Use current web findings, not generic memory-only advice.
 - Prioritize specific topics, pain points, and language used by the actual audience.
-- If context references OpenClaw, every major section must stay explicitly relevant to OpenClaw's AI social content workflow.
 
-Return actionable trends, pain points, hooks, and 3 specific image suggestions that would increase post engagement on LinkedIn.`
+Return actionable trends, pain points, hooks, and 3 specific image suggestions that would increase post engagement on LinkedIn.`,
+      { requireSources: true }
     );
 
-    const brandContext = `${context}\n${parsed.data.prompt}`;
-    const openClawRequired = isOpenClawContext(brandContext);
     const research = {
       ...researchResult.data,
       sources: researchResult.sources,
@@ -192,14 +226,15 @@ ${parsed.data.prompt}
 ${variationInstruction}`
     );
 
-    if (openClawRequired && !mentionsOpenClaw(content)) {
+    const anchors = extractAnchors(parsed.data.prompt, context);
+    if (!containsAnyAnchor(content, anchors) || !containsResearchSignals(content, research)) {
       content = await generateText(
-        "You are a LinkedIn growth copywriter. Follow constraints exactly.",
-        `Rewrite this post so it is explicitly and repeatedly about OpenClaw (brand/product), not generic social media advice.
+        "You are a LinkedIn growth copywriter. Follow constraints exactly and avoid generic output.",
+        `Rewrite this draft so it is tightly grounded in the business context and deep research findings.
 
 Constraints:
-- Mention OpenClaw by name at least 2 times.
-- Tie each core point to OpenClaw capabilities (deep research, content engine, workflow automation, analytics, posting execution).
+- Explicitly reference at least one key business anchor from this list: ${anchors.join(" | ")}.
+- Explicitly reference at least one deep research signal from this list: ${[...(research.trendingTopics ?? []).slice(0, 3), ...(research.painPoints ?? []).slice(0, 3), ...(research.keywords ?? []).slice(0, 3)].join(" | ")}.
 - Keep the chosen tone and post type.
 - Keep it concise and engaging for LinkedIn.
 - Preserve CTA and include 3 relevant hashtags.

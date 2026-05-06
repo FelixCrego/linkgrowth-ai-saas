@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { appUrl } from "../_lib/env.js";
-import { exchangeLinkedInCode, fetchLinkedInMemberUrn } from "../_lib/linkedin.js";
+import { exchangeLinkedInCode, fetchLinkedInMemberUrn, resolveAppUrlFromRequest, linkedinCallbackUrlForRequest } from "../_lib/linkedin.js";
 import { serverError } from "../_lib/http.js";
 import { sql } from "../_lib/db.js";
 
@@ -18,7 +17,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).send("Invalid OAuth state");
     }
 
-    const token = await exchangeLinkedInCode(code);
+    const callbackUrl = linkedinCallbackUrlForRequest(req);
+    const token = await exchangeLinkedInCode(code, callbackUrl);
     const memberUrn = await fetchLinkedInMemberUrn(token.access_token);
 
     await sql(
@@ -34,7 +34,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       [workspaceId, userId, memberUrn, token.access_token, new Date(Date.now() + token.expires_in * 1000).toISOString()]
     );
 
-    res.status(302).setHeader("Location", `${appUrl()}/?linkedin=connected`).end();
+    const redirectBase = resolveAppUrlFromRequest(req).replace(/\/$/, "");
+    res.status(302).setHeader("Location", `${redirectBase}/?linkedin=connected`).end();
   } catch (error) {
     serverError(res, error);
   }

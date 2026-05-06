@@ -37,6 +37,7 @@ Required for billing:
 Required for LinkedIn posting:
 - `LINKEDIN_CLIENT_ID`
 - `LINKEDIN_CLIENT_SECRET`
+- Optional: `LINKEDIN_REDIRECT_URI` (exact callback override if your LinkedIn app is locked to one callback URL)
 
 ## 3) Stripe Webhook
 Create Stripe webhook endpoint:

@@ -1,28 +1,54 @@
-import { appUrl, requireEnv } from "./env.js";
+import type { VercelRequest } from "@vercel/node";
+import { appUrl, optionalEnv, requireEnv } from "./env.js";
 
 const LINKEDIN_AUTH_BASE = "https://www.linkedin.com/oauth/v2/authorization";
 const LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken";
 
 export function linkedinCallbackUrl(): string {
+  const explicit = optionalEnv("LINKEDIN_REDIRECT_URI");
+  if (explicit) return explicit;
   return `${appUrl()}/api/linkedin/callback`;
 }
 
-export function linkedinAuthUrl(state: string): string {
+export function resolveAppUrlFromRequest(req: VercelRequest): string {
+  const forwardedHost = req.headers["x-forwarded-host"];
+  const host = Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost ?? req.headers.host;
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const proto = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto ?? "https";
+
+  if (host && typeof host === "string") {
+    return `${proto}://${host}`;
+  }
+
+  return appUrl();
+}
+
+export function linkedinCallbackUrlForRequest(req: VercelRequest): string {
+  const explicit = optionalEnv("LINKEDIN_REDIRECT_URI");
+  if (explicit) return explicit;
+  const baseUrl = resolveAppUrlFromRequest(req);
+  return `${baseUrl.replace(/\/$/, "")}/api/linkedin/callback`;
+}
+
+export function linkedinAuthUrl(state: string, callbackUrl = linkedinCallbackUrl()): string {
   const params = new URLSearchParams({
     response_type: "code",
     client_id: requireEnv("LINKEDIN_CLIENT_ID"),
-    redirect_uri: linkedinCallbackUrl(),
+    redirect_uri: callbackUrl,
     scope: "openid profile email w_member_social",
     state,
   });
   return `${LINKEDIN_AUTH_BASE}?${params.toString()}`;
 }
 
-export async function exchangeLinkedInCode(code: string): Promise<{ access_token: string; expires_in: number }> {
+export async function exchangeLinkedInCode(
+  code: string,
+  callbackUrl = linkedinCallbackUrl()
+): Promise<{ access_token: string; expires_in: number }> {
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     code,
-    redirect_uri: linkedinCallbackUrl(),
+    redirect_uri: callbackUrl,
     client_id: requireEnv("LINKEDIN_CLIENT_ID"),
     client_secret: requireEnv("LINKEDIN_CLIENT_SECRET"),
   });

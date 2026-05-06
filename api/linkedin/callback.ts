@@ -1,9 +1,38 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { exchangeLinkedInCode, fetchLinkedInMemberUrn, resolveAppUrlFromRequest, linkedinCallbackUrlForRequest } from "../_lib/linkedin.js";
-import { serverError } from "../_lib/http.js";
 import { sql } from "../_lib/db.js";
 
+function popupResponseHtml(origin: string, payload: { type: string; success: boolean; message?: string }): string {
+  const serialized = JSON.stringify(payload);
+  const safeOrigin = JSON.stringify(origin);
+
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>LinkedIn Connection</title>
+  </head>
+  <body style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 24px;">
+    <p>${payload.success ? "LinkedIn connected. You can close this window." : "LinkedIn connection failed. You can close this window."}</p>
+    <script>
+      (function() {
+        var data = ${serialized};
+        var targetOrigin = ${safeOrigin};
+        if (window.opener && typeof window.opener.postMessage === "function") {
+          window.opener.postMessage(data, targetOrigin);
+          window.close();
+          return;
+        }
+        window.location.href = targetOrigin + "/?linkedin=" + (data.success ? "connected" : "failed");
+      })();
+    </script>
+  </body>
+</html>`;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const redirectBase = resolveAppUrlFromRequest(req).replace(/\/$/, "");
+
   try {
     const code = req.query.code;
     const state = req.query.state;
@@ -34,9 +63,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       [workspaceId, userId, memberUrn, token.access_token, new Date(Date.now() + token.expires_in * 1000).toISOString()]
     );
 
-    const redirectBase = resolveAppUrlFromRequest(req).replace(/\/$/, "");
-    res.status(302).setHeader("Location", `${redirectBase}/?linkedin=connected`).end();
+    res.status(200).setHeader("Content-Type", "text/html; charset=utf-8").send(
+      popupResponseHtml(redirectBase, { type: "LINKEDIN_CONNECTED", success: true })
+    );
   } catch (error) {
-    serverError(res, error);
+    const message = error instanceof Error ? error.message : "LinkedIn callback failed";
+    res.status(200).setHeader("Content-Type", "text/html; charset=utf-8").send(
+      popupResponseHtml(redirectBase, { type: "LINKEDIN_CONNECT_FAILED", success: false, message })
+    );
   }
 }

@@ -11,7 +11,7 @@ import { Pricing } from "./components/Pricing";
 import { LandingPage } from "./components/LandingPage";
 import { Auth } from "./components/Auth";
 import { VoiceLab } from "./components/VoiceLab";
-import { billingStatus, createCheckout, linkedinAuthUrl, logout, me, openBillingPortal, saveOnboarding } from "./lib/api";
+import { billingStatus, createCheckout, linkedinAuthUrl, linkedinStatus, logout, me, openBillingPortal, saveOnboarding } from "./lib/api";
 
 export default function App() {
   const [view, setView] = useState<AppView>(AppView.HOME);
@@ -123,7 +123,70 @@ export default function App() {
     const popup = window.open(auth.url, "_blank", "width=600,height=700");
     if (!popup) {
       window.location.href = auth.url;
+      return;
     }
+
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+
+      const cleanup = () => {
+        window.removeEventListener("message", onMessage);
+        window.clearInterval(closedPoll);
+        window.clearTimeout(timeout);
+      };
+
+      const finishResolve = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve();
+      };
+
+      const finishReject = (message: string) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(new Error(message));
+      };
+
+      const onMessage = (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return;
+        if (!event.data || typeof event.data !== "object") return;
+        const payload = event.data as { type?: string; message?: string };
+        if (payload.type === "LINKEDIN_CONNECTED") {
+          finishResolve();
+          return;
+        }
+        if (payload.type === "LINKEDIN_CONNECT_FAILED") {
+          finishReject(payload.message ?? "LinkedIn connection failed");
+        }
+      };
+
+      const closedPoll = window.setInterval(async () => {
+        if (!popup.closed) return;
+        try {
+          const status = await linkedinStatus();
+          if (status.connected) {
+            finishResolve();
+            return;
+          }
+        } catch {
+          // no-op
+        }
+        finishReject("LinkedIn connection was cancelled");
+      }, 500);
+
+      const timeout = window.setTimeout(() => {
+        try {
+          popup.close();
+        } catch {
+          // no-op
+        }
+        finishReject("LinkedIn connection timed out");
+      }, 120000);
+
+      window.addEventListener("message", onMessage);
+    });
   };
 
   const handleAuthComplete = async () => {

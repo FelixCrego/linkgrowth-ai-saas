@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Linkedin, ArrowRight, ShieldCheck, Zap, BarChart, CheckCircle2, Globe, Target, UserPlus, PenTool } from "lucide-react";
 import { UserPreferences } from "../types";
+import { linkedinStatus } from "../lib/api";
 
 interface OnboardingProps {
   onComplete: (prefs: UserPreferences) => void | Promise<void>;
@@ -19,6 +20,21 @@ export const Onboarding = ({ onComplete, onConnectLinkedin }: OnboardingProps) =
     tone: "Professional",
     frequency: "Daily"
   });
+
+  useEffect(() => {
+    const checkLinkedinConnection = async () => {
+      try {
+        const status = await linkedinStatus();
+        if (status.connected) {
+          setStep((current) => (current === 1 ? 2 : current));
+        }
+      } catch {
+        // no-op
+      }
+    };
+
+    checkLinkedinConnection();
+  }, []);
 
   const handleConnect = async () => {
     setLoading(true);

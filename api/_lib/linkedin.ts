@@ -64,11 +64,24 @@ export async function exchangeLinkedInCode(
 }
 
 export async function fetchLinkedInMemberUrn(accessToken: string): Promise<string> {
+  const userInfoRes = await fetch("https://api.linkedin.com/v2/userinfo", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (userInfoRes.ok) {
+    const userInfo = (await userInfoRes.json()) as { sub?: string };
+    if (userInfo.sub && typeof userInfo.sub === "string") {
+      return `urn:li:person:${userInfo.sub}`;
+    }
+  }
+
   const profileRes = await fetch("https://api.linkedin.com/v2/me", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
-  if (!profileRes.ok) throw new Error(`LinkedIn /me failed: ${profileRes.status}`);
+  if (!profileRes.ok) {
+    throw new Error(`LinkedIn member lookup failed: userinfo=${userInfoRes.status} me=${profileRes.status}`);
+  }
   const profile = (await profileRes.json()) as { id: string };
   return `urn:li:person:${profile.id}`;
 }

@@ -17,6 +17,7 @@ const schema = z
   });
 
 type LinkedInRow = { access_token: string; linkedin_member_urn: string };
+type PgError = Error & { code?: string };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
@@ -40,6 +41,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       base64: parsed.data.imageBase64,
       mimeType: parsed.data.imageMimeType,
     });
+
+    try {
+      await sql(
+        "insert into linkedin_post_events (workspace_id, user_id, content, has_image) values ($1, $2, $3, $4)",
+        [session.workspaceId, session.userId, parsed.data.text, Boolean(parsed.data.imageBase64)]
+      );
+    } catch (error) {
+      const pgError = error as PgError;
+      if (pgError.code !== "42P01") throw error;
+    }
+
     sendJson(res, 200, { ok: true });
   } catch (error) {
     serverError(res, error);

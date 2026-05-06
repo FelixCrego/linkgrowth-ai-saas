@@ -87,8 +87,18 @@ create table if not exists voice_profiles (
   created_at timestamptz not null default now()
 );
 
+create table if not exists linkedin_post_events (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  content text not null,
+  has_image boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists idx_workspace_members_user_id on workspace_members(user_id);
 create index if not exists idx_generated_posts_workspace_id on generated_posts(workspace_id);
 create index if not exists idx_research_queries_workspace_id on research_queries(workspace_id);
 create index if not exists idx_voice_profiles_workspace_id on voice_profiles(workspace_id);
+create index if not exists idx_linkedin_post_events_workspace_id on linkedin_post_events(workspace_id);
 

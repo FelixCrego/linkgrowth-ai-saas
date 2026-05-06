@@ -11,10 +11,11 @@ import {
 
 interface LandingPageProps {
   onGetStarted: () => void;
+  onLoginClick: () => void;
   onPriceClick: () => void;
 }
 
-export const LandingPage = ({ onGetStarted, onPriceClick }: LandingPageProps) => {
+export const LandingPage = ({ onGetStarted, onLoginClick, onPriceClick }: LandingPageProps) => {
   return (
     <div className="bg-brand-dark min-h-screen text-slate-200 overflow-x-hidden">
       {/* Navigation */}
@@ -28,11 +29,25 @@ export const LandingPage = ({ onGetStarted, onPriceClick }: LandingPageProps) =>
         <div className="hidden md:flex items-center gap-8">
           <a href="#features" className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-colors">Features</a>
           <button onClick={onPriceClick} className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-colors">Pricing</button>
+          <button
+            onClick={onLoginClick}
+            className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-colors"
+          >
+            Login
+          </button>
           <button 
             onClick={onGetStarted}
             className="bg-brand-accent text-white px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-brand-accent/90 transition-all shadow-xl shadow-brand-accent/10"
           >
             Launch Engine
+          </button>
+        </div>
+        <div className="md:hidden flex items-center gap-2">
+          <button
+            onClick={onLoginClick}
+            className="px-4 py-2 rounded-lg border border-brand-border text-[10px] font-bold uppercase tracking-widest text-slate-300"
+          >
+            Login
           </button>
         </div>
       </nav>

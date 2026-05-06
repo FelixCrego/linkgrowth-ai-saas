@@ -15,6 +15,7 @@ import { billingStatus, createCheckout, linkedinAuthUrl, linkedinStatus, logout,
 
 export default function App() {
   const [view, setView] = useState<AppView>(AppView.HOME);
+  const [authMode, setAuthMode] = useState<"login" | "signup">("signup");
   const [loadingSession, setLoadingSession] = useState(true);
   const [isOnboarded, setIsOnboarded] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -248,7 +249,14 @@ export default function App() {
   if (view === AppView.HOME) {
     return (
       <LandingPage 
-        onGetStarted={() => setView(AppView.AUTH)} 
+        onGetStarted={() => {
+          setAuthMode("signup");
+          setView(AppView.AUTH);
+        }}
+        onLoginClick={() => {
+          setAuthMode("login");
+          setView(AppView.AUTH);
+        }}
         onPriceClick={() => setView(AppView.PRICING)} 
       />
     );
@@ -256,7 +264,7 @@ export default function App() {
 
   // 2. Auth Case
   if (view === AppView.AUTH && !isAuthenticated) {
-    return <Auth onAuthComplete={handleAuthComplete} />;
+    return <Auth onAuthComplete={handleAuthComplete} initialMode={authMode} />;
   }
 
   // 3. Onboarding Case

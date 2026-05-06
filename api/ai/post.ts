@@ -119,6 +119,22 @@ function containsResearchSignals(content: string, research: DeepResearchPack): b
   return candidates.some((value) => lower.includes(normalizeLower(value)));
 }
 
+function normalizeLinkedInText(value: string): string {
+  let text = value;
+
+  // LinkedIn does not render Markdown. Convert common markdown artifacts to plain text.
+  text = text.replace(/\*\*(.*?)\*\*/g, "$1");
+  text = text.replace(/__(.*?)__/g, "$1");
+  text = text.replace(/`([^`]+)`/g, "$1");
+  text = text.replace(/^#{1,6}\s+/gm, "");
+
+  // Normalize excessive spacing while preserving paragraph breaks.
+  text = text.replace(/\r\n/g, "\n");
+  text = text.replace(/\n{3,}/g, "\n\n");
+
+  return text.trim();
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
 
@@ -217,7 +233,7 @@ Return actionable trends, pain points, hooks, and 3 specific image suggestions t
     ]);
 
     let content = await generateText(
-      "You are a LinkedIn growth copywriter. Prioritize the explicit user prompt intent over stored workspace defaults when they differ. Write an engaging LinkedIn post with a strong hook, clear whitespace formatting, tactical insight, a concrete CTA, and 3 relevant hashtags. Avoid generic advice and keep the post specific to the prompt and validated research signals.",
+      "You are a LinkedIn growth copywriter. Prioritize the explicit user prompt intent over stored workspace defaults when they differ. Write an engaging LinkedIn post with a strong hook, clear whitespace formatting, tactical insight, a concrete CTA, and 3 relevant hashtags. Avoid generic advice and keep the post specific to the prompt and validated research signals. Output must be plain text for LinkedIn only: no Markdown, no **bold**, no headings, no backticks.",
       `Business Context:
 ${context}
 
@@ -259,11 +275,14 @@ Constraints:
 - Keep the chosen tone and post type.
 - Keep it concise and engaging for LinkedIn.
 - Preserve CTA and include 3 relevant hashtags.
+- Output plain text only for LinkedIn: no Markdown syntax (no **, __, #, or backticks).
 
 Draft to rewrite:
 ${content}`
       );
     }
+
+    content = normalizeLinkedInText(content);
 
     await sql("insert into generated_posts (workspace_id, user_id, prompt, content) values ($1, $2, $3, $4)", [
       session.workspaceId,

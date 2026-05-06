@@ -8,6 +8,10 @@ import { sql } from "../_lib/db.js";
 const schema = z
   .object({
     text: z.string().min(3).max(3000),
+    postLink: z.preprocess(
+      (value) => (typeof value === "string" && value.trim().length === 0 ? undefined : value),
+      z.string().trim().url().max(2048).optional()
+    ),
     imageBase64: z.string().min(100).optional(),
     imageMimeType: z.string().regex(/^image\/(png|jpeg|jpg|webp)$/i).optional(),
   })
@@ -37,7 +41,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const account = accountRes.rows[0];
     if (!account) return badRequest(res, "LinkedIn is not connected");
 
-    const publishResult = await publishLinkedInPost(account.access_token, account.linkedin_member_urn, parsed.data.text, {
+    const publishText = parsed.data.postLink ? `${parsed.data.text}\n\n${parsed.data.postLink}` : parsed.data.text;
+
+    const publishResult = await publishLinkedInPost(account.access_token, account.linkedin_member_urn, publishText, {
       base64: parsed.data.imageBase64,
       mimeType: parsed.data.imageMimeType,
     });
@@ -45,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       await sql(
         "insert into linkedin_post_events (workspace_id, user_id, content, has_image, post_urn) values ($1, $2, $3, $4, $5)",
-        [session.workspaceId, session.userId, parsed.data.text, Boolean(parsed.data.imageBase64), publishResult.postUrn]
+        [session.workspaceId, session.userId, publishText, Boolean(parsed.data.imageBase64), publishResult.postUrn]
       );
     } catch (error) {
       const pgError = error as PgError;

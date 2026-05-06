@@ -13,7 +13,11 @@ import {
 import {
   generateImage as generateImageApi,
   generatePost as generatePostApi,
+  getAutomationSettings,
+  humanizePost,
   publishLinkedin,
+  runAutomationNow,
+  saveAutomationSettings,
   type DeepResearchPack,
   type PostType,
 } from "../lib/api";
@@ -53,7 +57,19 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const [posting, setPosting] = useState(false);
+  const [humanizing, setHumanizing] = useState(false);
+  const [postLink, setPostLink] = useState("");
   const [workflowStage, setWorkflowStage] = useState<"idle" | "research" | "drafting">("idle");
+  const [automationEnabled, setAutomationEnabled] = useState(false);
+  const [automationAutoPublish, setAutomationAutoPublish] = useState(false);
+  const [automationPostsPerDay, setAutomationPostsPerDay] = useState(3);
+  const [automationSeedPrompt, setAutomationSeedPrompt] = useState("");
+  const [automationLastRunAt, setAutomationLastRunAt] = useState<string | null>(null);
+  const [automationLastError, setAutomationLastError] = useState<string | null>(null);
+  const [automationLoading, setAutomationLoading] = useState(true);
+  const [automationSaving, setAutomationSaving] = useState(false);
+  const [automationRunning, setAutomationRunning] = useState(false);
+  const [automationStatus, setAutomationStatus] = useState("");
 
   useEffect(() => {
     if (!initialPrompt) return;
@@ -63,6 +79,27 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
     setGeneratedImage(null);
     setError("");
   }, [initialPrompt]);
+
+  useEffect(() => {
+    const loadAutomationSettings = async () => {
+      setAutomationLoading(true);
+      try {
+        const settings = await getAutomationSettings();
+        setAutomationEnabled(settings.enabled);
+        setAutomationAutoPublish(settings.autoPublish);
+        setAutomationPostsPerDay(settings.postsPerDay);
+        setAutomationSeedPrompt(settings.seedPrompt || "");
+        setAutomationLastRunAt(settings.lastRunAt);
+        setAutomationLastError(settings.lastError);
+      } catch {
+        // keep defaults
+      } finally {
+        setAutomationLoading(false);
+      }
+    };
+
+    loadAutomationSettings();
+  }, []);
 
   const generatePost = async (regenerate = false) => {
     if (!prompt) return;
@@ -136,6 +173,7 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
     try {
       await publishLinkedin({
         text: output,
+        postLink: postLink.trim() || undefined,
         imageBase64: generatedImage?.imageBase64,
         imageMimeType: generatedImage?.mimeType,
       });
@@ -146,9 +184,140 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
     }
   };
 
+  const saveAutomation = async () => {
+    setAutomationSaving(true);
+    setAutomationStatus("");
+    try {
+      await saveAutomationSettings({
+        enabled: automationEnabled,
+        autoPublish: automationAutoPublish,
+        postsPerDay: automationPostsPerDay,
+        seedPrompt: automationSeedPrompt,
+      });
+      setAutomationStatus("Automation settings saved.");
+    } catch (e) {
+      setAutomationStatus(e instanceof Error ? e.message : "Failed to save automation settings");
+    } finally {
+      setAutomationSaving(false);
+    }
+  };
+
+  const runAutomation = async () => {
+    setAutomationRunning(true);
+    setAutomationStatus("");
+    try {
+      const result = await runAutomationNow();
+      if (result.error) {
+        setAutomationStatus(`Automation completed with errors: ${result.error}`);
+      } else if (result.skipped) {
+        setAutomationStatus(`Automation skipped: ${result.reason ?? "No action taken"}`);
+      } else {
+        setAutomationStatus(`Automation done: generated ${result.generated}, published ${result.published}.`);
+      }
+      setAutomationLastRunAt(new Date().toISOString());
+    } catch (e) {
+      setAutomationStatus(e instanceof Error ? e.message : "Automation run failed");
+    } finally {
+      setAutomationRunning(false);
+    }
+  };
+
+  const humanizeCurrentPost = async () => {
+    if (!output) return;
+    setHumanizing(true);
+    setError("");
+    try {
+      const result = await humanizePost(output, tone);
+      setOutput(result.content || output);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to humanize post");
+    } finally {
+      setHumanizing(false);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12">
       <div className="space-y-8">
+        <div className="border border-brand-border rounded-2xl bg-slate-900/40 p-5 space-y-4">
+          <p className="text-[10px] font-bold text-brand-accent uppercase tracking-[0.3em]">Auto Scheduler</p>
+          {automationLoading ? (
+            <p className="text-xs text-slate-500">Loading automation settings...</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label className="flex items-center gap-2 text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={automationEnabled}
+                    onChange={(e) => setAutomationEnabled(e.target.checked)}
+                  />
+                  Enable automated post creation
+                </label>
+                <label className="flex items-center gap-2 text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={automationAutoPublish}
+                    onChange={(e) => setAutomationAutoPublish(e.target.checked)}
+                  />
+                  Auto-publish to LinkedIn
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Posts Per Day</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={automationPostsPerDay}
+                    onChange={(e) => setAutomationPostsPerDay(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+                    className="w-full mt-1 bg-slate-900 border border-brand-border rounded-lg px-3 py-2 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Last Run</label>
+                  <div className="w-full mt-1 bg-slate-900 border border-brand-border rounded-lg px-3 py-2 text-xs text-slate-300">
+                    {automationLastRunAt ? new Date(automationLastRunAt).toLocaleString() : "Never"}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Seed Prompt For Batch Generation</label>
+                <textarea
+                  value={automationSeedPrompt}
+                  onChange={(e) => setAutomationSeedPrompt(e.target.value)}
+                  rows={3}
+                  className="w-full mt-1 bg-slate-900 border border-brand-border rounded-lg px-3 py-2 text-xs text-white"
+                  placeholder="Example: Publish practical LinkedIn posts about outbound lead gen for B2B service founders."
+                />
+              </div>
+
+              {automationLastError && <p className="text-xs text-red-400">Last Error: {automationLastError}</p>}
+              {automationStatus && <p className="text-xs text-slate-300">{automationStatus}</p>}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={saveAutomation}
+                  disabled={automationSaving}
+                  className="bg-slate-800 border border-slate-700/50 text-slate-200 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest disabled:opacity-50"
+                >
+                  {automationSaving ? "Saving..." : "Save Automation"}
+                </button>
+                <button
+                  onClick={runAutomation}
+                  disabled={automationRunning}
+                  className="bg-brand-accent text-white px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest disabled:opacity-50"
+                >
+                  {automationRunning ? "Running..." : "Run Now"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
         <div>
           <p className="text-[10px] font-bold text-brand-accent uppercase tracking-[0.3em] mb-2">Editor</p>
           <h2 className="text-4xl font-light tracking-tight text-white mb-2">Content Engine</h2>
@@ -325,6 +494,16 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
           </div>
 
           <div className="p-6 border-t border-brand-border bg-slate-800/10 flex flex-col gap-4">
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Link To Include On Publish (Optional)</label>
+              <input
+                type="url"
+                value={postLink}
+                onChange={(e) => setPostLink(e.target.value)}
+                placeholder="https://yourdomain.com/offer-or-article"
+                className="w-full bg-slate-900 border border-slate-700/50 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-500 outline-none focus:border-brand-accent/50"
+              />
+            </div>
             <div className="flex gap-4">
               <button
                 onClick={copyToClipboard}
@@ -340,15 +519,23 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
             </div>
             <button
               onClick={() => generatePost(true)}
-              disabled={!output || generating || regenerating}
+              disabled={!output || generating || regenerating || humanizing}
               className="w-full bg-slate-800 border border-slate-700/50 text-slate-300 py-3 rounded-xl flex items-center justify-center gap-2 font-bold uppercase text-[10px] tracking-widest hover:text-white transition-all disabled:opacity-30"
             >
               <RefreshCw className={`w-4 h-4 ${regenerating ? "animate-spin" : ""}`} />
               {regenerating ? "Regenerating..." : "Regenerate With AI"}
             </button>
             <button
+              onClick={humanizeCurrentPost}
+              disabled={!output || posting || generating || regenerating || humanizing}
+              className="w-full bg-slate-800 border border-slate-700/50 text-slate-300 py-3 rounded-xl flex items-center justify-center gap-2 font-bold uppercase text-[10px] tracking-widest hover:text-white transition-all disabled:opacity-30"
+            >
+              <MessageSquare className={`w-4 h-4 ${humanizing ? "animate-pulse" : ""}`} />
+              {humanizing ? "Humanizing..." : "Humanize Post"}
+            </button>
+            <button
               onClick={postToLinkedin}
-              disabled={!output || posting || generating || regenerating}
+              disabled={!output || posting || generating || regenerating || humanizing}
               className="w-full bg-brand-accent text-white py-4 rounded-xl flex items-center justify-center gap-3 font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-brand-accent/20 hover:bg-brand-accent/90 transition-all disabled:opacity-20"
             >
               <Send className="w-4 h-4" />

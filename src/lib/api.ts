@@ -47,6 +47,15 @@ export type DashboardMetricsResponse = {
   recentActivity: Array<{ id: string; label: string; detail: string; createdAt: string }>;
 };
 
+export type AutomationSettings = {
+  enabled: boolean;
+  autoPublish: boolean;
+  postsPerDay: number;
+  seedPrompt: string;
+  lastRunAt: string | null;
+  lastError: string | null;
+};
+
 export async function signUp(payload: { email: string; password: string; name: string; workspaceName?: string }) {
   return apiFetch("/api/auth/signup", { method: "POST", body: JSON.stringify(payload) });
 }
@@ -103,6 +112,13 @@ export async function generatePost(
   });
 }
 
+export async function humanizePost(content: string, tone?: string) {
+  return apiFetch<{ content: string }>("/api/ai/humanize", {
+    method: "POST",
+    body: JSON.stringify({ content, tone }),
+  });
+}
+
 export async function generateImage(prompt: string) {
   return apiFetch<{ imageBase64: string; mimeType: string }>("/api/ai/image", {
     method: "POST",
@@ -152,11 +168,37 @@ export async function disconnectLinkedin() {
   return apiFetch<{ ok: boolean }>("/api/linkedin/disconnect", { method: "POST" });
 }
 
-export async function publishLinkedin(payload: { text: string; imageBase64?: string; imageMimeType?: string }) {
+export async function publishLinkedin(payload: { text: string; postLink?: string; imageBase64?: string; imageMimeType?: string }) {
   return apiFetch<{ ok: boolean }>("/api/linkedin/publish", {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export async function getAutomationSettings() {
+  return apiFetch<AutomationSettings>("/api/automation/settings", { method: "GET" });
+}
+
+export async function saveAutomationSettings(payload: {
+  enabled: boolean;
+  autoPublish: boolean;
+  postsPerDay: number;
+  seedPrompt?: string;
+}) {
+  return apiFetch<{ ok: boolean }>("/api/automation/settings", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function runAutomationNow(count?: number) {
+  return apiFetch<{ workspaceId: string; generated: number; published: number; skipped: boolean; reason?: string; error?: string }>(
+    "/api/automation/run",
+    {
+      method: "POST",
+      body: JSON.stringify({ count }),
+    }
+  );
 }
 
 export async function dashboardMetrics() {

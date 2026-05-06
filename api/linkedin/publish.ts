@@ -37,15 +37,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const account = accountRes.rows[0];
     if (!account) return badRequest(res, "LinkedIn is not connected");
 
-    await publishLinkedInPost(account.access_token, account.linkedin_member_urn, parsed.data.text, {
+    const publishResult = await publishLinkedInPost(account.access_token, account.linkedin_member_urn, parsed.data.text, {
       base64: parsed.data.imageBase64,
       mimeType: parsed.data.imageMimeType,
     });
 
     try {
       await sql(
-        "insert into linkedin_post_events (workspace_id, user_id, content, has_image) values ($1, $2, $3, $4)",
-        [session.workspaceId, session.userId, parsed.data.text, Boolean(parsed.data.imageBase64)]
+        "insert into linkedin_post_events (workspace_id, user_id, content, has_image, post_urn) values ($1, $2, $3, $4, $5)",
+        [session.workspaceId, session.userId, parsed.data.text, Boolean(parsed.data.imageBase64), publishResult.postUrn]
       );
     } catch (error) {
       const pgError = error as PgError;

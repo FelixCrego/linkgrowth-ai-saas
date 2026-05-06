@@ -31,11 +31,17 @@ export function linkedinCallbackUrlForRequest(req: VercelRequest): string {
 }
 
 export function linkedinAuthUrl(state: string, callbackUrl = linkedinCallbackUrl()): string {
+  const extraScopes = (optionalEnv("LINKEDIN_EXTRA_SCOPES") ?? "")
+    .split(/[,\s]+/)
+    .map((scope) => scope.trim())
+    .filter(Boolean);
+  const scope = ["openid", "profile", "email", "w_member_social", ...extraScopes].join(" ");
+
   const params = new URLSearchParams({
     response_type: "code",
     client_id: requireEnv("LINKEDIN_CLIENT_ID"),
     redirect_uri: callbackUrl,
-    scope: "openid profile email w_member_social",
+    scope,
     state,
   });
   return `${LINKEDIN_AUTH_BASE}?${params.toString()}`;
@@ -89,6 +95,13 @@ export async function fetchLinkedInMemberUrn(accessToken: string): Promise<strin
 type LinkedInImageInput = {
   base64?: string;
   mimeType?: string;
+};
+
+export type LinkedInMemberAnalytics = {
+  followerCount: number | null;
+  followerDeltaLast7Days: number | null;
+  available: boolean;
+  error: string | null;
 };
 
 type RegisterUploadResponse = {
@@ -175,12 +188,43 @@ async function createLinkedInUgcPost(accessToken: string, payload: Record<string
   }
 }
 
+async function createLinkedInUgcPostWithId(accessToken: string, payload: Record<string, unknown>): Promise<string | null> {
+  const response = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "X-Restli-Protocol-Version": "2.0.0",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const textBody = await response.text();
+    throw new Error(`LinkedIn publish failed: ${response.status} ${textBody}`);
+  }
+
+  const restliId = response.headers.get("x-restli-id");
+  if (restliId && restliId.startsWith("urn:li:")) return restliId;
+  if (restliId) return `urn:li:ugcPost:${restliId}`;
+
+  try {
+    const body = (await response.json()) as { id?: string };
+    if (body.id && body.id.startsWith("urn:li:")) return body.id;
+    if (body.id) return `urn:li:ugcPost:${body.id}`;
+  } catch {
+    // no-op
+  }
+
+  return null;
+}
+
 export async function publishLinkedInPost(
   accessToken: string,
   authorUrn: string,
   text: string,
   image?: LinkedInImageInput
-): Promise<unknown> {
+): Promise<{ ok: true; postUrn: string | null }> {
   const hasImage = Boolean(image?.base64);
 
   if (hasImage) {
@@ -190,7 +234,7 @@ export async function publishLinkedInPost(
     const { asset, uploadUrl } = await registerLinkedInImageUpload(accessToken, authorUrn);
 
     await uploadLinkedInImageBytes(accessToken, uploadUrl, mimeType, bytes);
-    await createLinkedInUgcPost(accessToken, {
+    const postUrn = await createLinkedInUgcPostWithId(accessToken, {
       author: authorUrn,
       lifecycleState: "PUBLISHED",
       specificContent: {
@@ -202,7 +246,7 @@ export async function publishLinkedInPost(
       },
       visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" },
     });
-    return { ok: true };
+    return { ok: true, postUrn };
   }
 
   const payload = {
@@ -217,8 +261,69 @@ export async function publishLinkedInPost(
     visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" },
   };
 
-  await createLinkedInUgcPost(accessToken, payload);
+  const postUrn = await createLinkedInUgcPostWithId(accessToken, payload);
 
-  return { ok: true };
+  return { ok: true, postUrn };
+}
+
+function linkedInVersionHeader(): string {
+  const configured = optionalEnv("LINKEDIN_API_VERSION");
+  if (configured) return configured;
+  const now = new Date();
+  return `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+type MemberFollowerCountResponse = {
+  elements?: Array<{ memberFollowersCount?: number }>;
+};
+
+export async function fetchLinkedInMemberAnalytics(accessToken: string): Promise<LinkedInMemberAnalytics> {
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    "X-Restli-Protocol-Version": "2.0.0",
+    "Linkedin-Version": linkedInVersionHeader(),
+    "Content-Type": "application/json",
+  };
+
+  const lifetimeRes = await fetch("https://api.linkedin.com/rest/memberFollowersCount?q=me", { headers });
+  if (!lifetimeRes.ok) {
+    const body = await lifetimeRes.text();
+    return {
+      followerCount: null,
+      followerDeltaLast7Days: null,
+      available: false,
+      error: `memberFollowersCount unavailable (${lifetimeRes.status}) ${body}`,
+    };
+  }
+
+  const lifetimeJson = (await lifetimeRes.json()) as MemberFollowerCountResponse;
+  const followerCount = lifetimeJson.elements?.[0]?.memberFollowersCount ?? null;
+
+  const end = new Date();
+  end.setUTCHours(0, 0, 0, 0);
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - 7);
+  const dateRange = `(start:(year:${start.getUTCFullYear()},month:${start.getUTCMonth() + 1},day:${start.getUTCDate()}),end:(year:${end.getUTCFullYear()},month:${end.getUTCMonth() + 1},day:${end.getUTCDate()}))`;
+  const rangeUrl = `https://api.linkedin.com/rest/memberFollowersCount?q=dateRange&dateRange=${encodeURIComponent(dateRange)}`;
+  const rangeRes = await fetch(rangeUrl, { headers });
+
+  if (!rangeRes.ok) {
+    return {
+      followerCount,
+      followerDeltaLast7Days: null,
+      available: true,
+      error: null,
+    };
+  }
+
+  const rangeJson = (await rangeRes.json()) as MemberFollowerCountResponse;
+  const followerDeltaLast7Days = (rangeJson.elements ?? []).reduce((sum, element) => sum + (element.memberFollowersCount ?? 0), 0);
+
+  return {
+    followerCount,
+    followerDeltaLast7Days,
+    available: true,
+    error: null,
+  };
 }
 

@@ -38,6 +38,8 @@ Required for LinkedIn posting:
 - `LINKEDIN_CLIENT_ID`
 - `LINKEDIN_CLIENT_SECRET`
 - Optional: `LINKEDIN_REDIRECT_URI` (exact callback override if your LinkedIn app is locked to one callback URL)
+- Optional: `LINKEDIN_EXTRA_SCOPES` (for member analytics, include `r_member_profileAnalytics` if approved)
+- Optional: `LINKEDIN_API_VERSION` (LinkedIn REST version header in `YYYYMM` format)
 
 ## 3) Stripe Webhook
 Create Stripe webhook endpoint:

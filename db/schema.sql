@@ -93,8 +93,11 @@ create table if not exists linkedin_post_events (
   user_id uuid not null references users(id) on delete cascade,
   content text not null,
   has_image boolean not null default false,
+  post_urn text,
   created_at timestamptz not null default now()
 );
+
+alter table if exists linkedin_post_events add column if not exists post_urn text;
 
 create index if not exists idx_workspace_members_user_id on workspace_members(user_id);
 create index if not exists idx_generated_posts_workspace_id on generated_posts(workspace_id);

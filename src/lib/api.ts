@@ -34,6 +34,12 @@ export type DashboardMetricsResponse = {
     connected: boolean;
     memberUrn: string | null;
     expiresAt: string | null;
+    analytics: {
+      followerCount: number | null;
+      followerDeltaLast7Days: number | null;
+      available: boolean;
+      error: string | null;
+    };
   };
   stats: {
     draftsTotal: number;

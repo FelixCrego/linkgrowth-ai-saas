@@ -3,10 +3,12 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { methodNotAllowed, sendJson, serverError } from "../_lib/http.js";
 import { requireSession } from "../_lib/session.js";
 import { sql } from "../_lib/db.js";
+import { fetchLinkedInMemberAnalytics } from "../_lib/linkedin.js";
 
 type LinkedInRow = {
   linkedin_member_urn: string;
   expires_at: string | null;
+  access_token: string;
 };
 
 type CountRow = QueryResultRow & { count: number };
@@ -33,10 +35,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const workspaceId = session.workspaceId;
 
     const linkedInAccountRes = await sql<LinkedInRow>(
-      "select linkedin_member_urn, expires_at from linkedin_accounts where workspace_id = $1 limit 1",
+      "select linkedin_member_urn, expires_at, access_token from linkedin_accounts where workspace_id = $1 limit 1",
       [workspaceId]
     );
     const linkedInAccount = linkedInAccountRes.rows[0];
+    const linkedInAnalytics = linkedInAccount
+      ? await fetchLinkedInMemberAnalytics(linkedInAccount.access_token).catch((error: unknown) => ({
+          followerCount: null,
+          followerDeltaLast7Days: null,
+          available: false,
+          error: error instanceof Error ? error.message : "LinkedIn analytics unavailable",
+        }))
+      : { followerCount: null, followerDeltaLast7Days: null, available: false, error: null };
 
     const publishTableRes = await sql<RegclassRow>("select to_regclass('public.linkedin_post_events') as regclass");
     const hasPublishEventsTable = Boolean(publishTableRes.rows[0]?.regclass);
@@ -134,6 +144,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         connected: Boolean(linkedInAccount),
         memberUrn: linkedInAccount?.linkedin_member_urn ?? null,
         expiresAt: linkedInAccount?.expires_at ?? null,
+        analytics: linkedInAnalytics,
       },
       stats: {
         draftsTotal: draftCountRes.rows[0]?.count ?? 0,

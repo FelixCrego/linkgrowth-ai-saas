@@ -11,7 +11,11 @@ const schema = z.object({ tier: z.string() });
 
 type WorkspaceRow = { id: string; name: string };
 type UserRow = { email: string };
-type SubscriptionRow = { stripe_customer_id: string | null };
+type SubscriptionRow = {
+  stripe_customer_id: string | null;
+  tier: "starter" | "pro" | "elite";
+  status: string;
+};
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
@@ -31,16 +35,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const workspaceRes = await sql<WorkspaceRow>("select id, name from workspaces where id = $1", [sessionUser.workspaceId]);
     const userRes = await sql<UserRow>("select email from users where id = $1", [sessionUser.userId]);
-    const subRes = await sql<SubscriptionRow>(
-      "select stripe_customer_id from subscriptions where workspace_id = $1",
-      [sessionUser.workspaceId]
-    );
+    const subRes = await sql<SubscriptionRow>("select stripe_customer_id, tier, status from subscriptions where workspace_id = $1", [
+      sessionUser.workspaceId,
+    ]);
 
     const workspace = workspaceRes.rows[0];
     const user = userRes.rows[0];
     if (!workspace || !user) return badRequest(res, "Workspace or user not found");
 
-    let customerId = subRes.rows[0]?.stripe_customer_id ?? null;
+    const existingSub = subRes.rows[0];
+    if (existingSub && (existingSub.status === "active" || existingSub.status === "trialing" || existingSub.status === "past_due")) {
+      if (existingSub.tier === tier) {
+        return badRequest(res, `Your workspace is already on the ${tier.toUpperCase()} plan.`);
+      }
+      return badRequest(res, "Plan changes for active subscriptions are managed in the billing portal.");
+    }
+
+    let customerId = existingSub?.stripe_customer_id ?? null;
 
     if (!customerId) {
       const customer = await stripe.customers.create({

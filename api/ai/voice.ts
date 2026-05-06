@@ -4,6 +4,7 @@ import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } fr
 import { requireSession } from "../_lib/session.js";
 import { sql } from "../_lib/db.js";
 import { generateJson } from "../_lib/openai.js";
+import { getWorkspaceSubscription, hasRequiredTier } from "../_lib/subscription.js";
 
 const schema = z.object({ trainingData: z.string().min(20) });
 
@@ -24,6 +25,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const parsed = schema.safeParse(await parseJsonBody(req));
     if (!parsed.success) return badRequest(res, "Invalid training payload");
+
+    const subscription = await getWorkspaceSubscription(session.workspaceId);
+    if (!hasRequiredTier(subscription.tier, "pro")) {
+      return badRequest(res, "Voice Lab is available on Pro and Elite plans.");
+    }
 
     const profile = await generateJson<VoiceProfile>(
       "Return ONLY a JSON object with keys: tone, style, lengthPreference, emojiUsage, hookStrategy.",

@@ -5,9 +5,11 @@ import { SubscriptionTier } from "../types";
 interface PricingProps {
   onUpgrade: (tier: SubscriptionTier) => void;
   currentTier: SubscriptionTier;
+  loadingTier?: SubscriptionTier | null;
+  errorMessage?: string;
 }
 
-export const Pricing = ({ onUpgrade, currentTier }: PricingProps) => {
+export const Pricing = ({ onUpgrade, currentTier, loadingTier = null, errorMessage = "" }: PricingProps) => {
   const TIERS = [
     {
       id: SubscriptionTier.STARTER,
@@ -15,7 +17,7 @@ export const Pricing = ({ onUpgrade, currentTier }: PricingProps) => {
       price: "$0",
       desc: "For solo entrepreneurs testing the waters.",
       icon: Shield,
-      features: ["3 Posts / Week", "Basic Research", "1 LinkedIn Account", "Standard Support"],
+      features: ["3 Posts / 7 Days", "1 LinkedIn Account", "Standard Support"],
       accent: "from-slate-800 to-slate-900"
     },
     {
@@ -24,7 +26,7 @@ export const Pricing = ({ onUpgrade, currentTier }: PricingProps) => {
       price: "$49",
       desc: "The essential kit for established professionals.",
       icon: Zap,
-      features: ["Unlimited Posts", "Deep Research Engine", "3 LinkedIn Accounts", "Priority Queue", "AI Brand Voice"],
+      features: ["Unlimited Posts", "Deep Research Engine", "AI Brand Voice", "AI Image Generation", "Priority Support"],
       accent: "from-brand-accent/20 to-brand-accent/40",
       featured: true
     },
@@ -34,7 +36,7 @@ export const Pricing = ({ onUpgrade, currentTier }: PricingProps) => {
       price: "$149",
       desc: "Maximum velocity for agencies and leaders.",
       icon: Crown,
-      features: ["Team Access (5 seats)", "Multi-Tenant Workspaces", "Whitelabel Exports", "White-glove Onboarding", "Custom AI Models"],
+      features: ["Everything in Pro", "Highest Priority Support", "Advanced Strategy Reviews", "White-glove Onboarding", "Custom Growth Playbooks"],
       accent: "from-amber-500/20 to-amber-600/40"
     }
   ];
@@ -48,6 +50,7 @@ export const Pricing = ({ onUpgrade, currentTier }: PricingProps) => {
           Select a power level that matches your growth velocity. 
           Upgrade or downgrade at any time as your network expands.
         </p>
+        {errorMessage && <p className="text-sm text-red-400">{errorMessage}</p>}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -94,16 +97,18 @@ export const Pricing = ({ onUpgrade, currentTier }: PricingProps) => {
 
             <button
               onClick={() => onUpgrade(tier.id)}
-              disabled={currentTier === tier.id}
+              disabled={currentTier === tier.id || loadingTier === tier.id}
               className={`relative z-10 mt-12 w-full py-4 rounded-xl font-bold uppercase text-[10px] tracking-[0.2em] transition-all ${
                 currentTier === tier.id
                   ? 'bg-slate-800 text-slate-500 cursor-default'
+                  : loadingTier === tier.id
+                  ? 'bg-slate-700 text-slate-300 cursor-wait'
                   : tier.featured
                   ? 'bg-brand-accent text-white shadow-xl shadow-brand-accent/20 hover:scale-[1.02]'
                   : 'bg-white/10 text-white hover:bg-white/20'
               }`}
             >
-              {currentTier === tier.id ? "Current Protocol" : "Upgrade Identity"}
+              {currentTier === tier.id ? "Current Protocol" : loadingTier === tier.id ? "Redirecting..." : "Upgrade Identity"}
             </button>
           </motion.div>
         ))}

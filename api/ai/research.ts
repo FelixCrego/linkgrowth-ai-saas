@@ -4,6 +4,7 @@ import { badRequest, methodNotAllowed, parseJsonBody, sendJson, serverError } fr
 import { requireSession } from "../_lib/session.js";
 import { sql } from "../_lib/db.js";
 import { generateJson } from "../_lib/openai.js";
+import { getWorkspaceSubscription, hasRequiredTier } from "../_lib/subscription.js";
 
 const schema = z.object({ query: z.string().min(2) });
 
@@ -25,11 +26,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const parsed = schema.safeParse(await parseJsonBody(req));
     if (!parsed.success) return badRequest(res, "Invalid research payload");
 
-    const trends = await generateJson<Trend[]>(
-      "Return ONLY a JSON array. Each object must include topic, sentiment, reach, relevance (0-100 number), explanation.",
+    const subscription = await getWorkspaceSubscription(session.workspaceId);
+    if (!hasRequiredTier(subscription.tier, "pro")) {
+      return badRequest(res, "Deep Research is available on Pro and Elite plans.");
+    }
+
+    const payload = await generateJson<{ trends?: Trend[] } | Trend[]>(
+      "Return JSON only. Prefer an object with key 'trends' containing an array. Each trend must include topic, sentiment, reach, relevance (0-100), explanation.",
       `Research LinkedIn growth trends for: ${parsed.data.query}`
     );
 
+    const trends = Array.isArray(payload) ? payload : payload?.trends;
     if (!Array.isArray(trends)) {
       return badRequest(res, "Model output parsing failed");
     }

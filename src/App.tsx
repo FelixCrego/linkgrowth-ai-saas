@@ -19,6 +19,8 @@ export default function App() {
   const [loadingSession, setLoadingSession] = useState(true);
   const [isOnboarded, setIsOnboarded] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [upgradeLoadingTier, setUpgradeLoadingTier] = useState<SubscriptionTier | null>(null);
+  const [upgradeError, setUpgradeError] = useState("");
   const [currentTenant, setCurrentTenant] = useState<Tenant>({
     id: "workspace",
     name: "LinkGrowth Workspace",
@@ -88,15 +90,44 @@ export default function App() {
   };
 
   const handleUpgrade = async (tier: SubscriptionTier) => {
+    setUpgradeError("");
+    setUpgradeLoadingTier(tier);
     if (tier === SubscriptionTier.STARTER) {
-      setCurrentTenant((prev) => ({ ...prev, tier }));
+      setUpgradeLoadingTier(null);
+      if (!isAuthenticated) {
+        setAuthMode("signup");
+        setView(AppView.AUTH);
+        return;
+      }
+      if (currentTenant.tier !== SubscriptionTier.STARTER) {
+        await handleBillingOpen();
+        return;
+      }
       setView(AppView.DASHBOARD);
       return;
     }
 
-    const requestedTier = tier === SubscriptionTier.PRO ? "pro" : "elite";
-    const checkout = await createCheckout(requestedTier);
-    window.location.href = checkout.url;
+    if (!isAuthenticated) {
+      setUpgradeLoadingTier(null);
+      setAuthMode("signup");
+      setView(AppView.AUTH);
+      return;
+    }
+
+    if (currentTenant.tier !== SubscriptionTier.STARTER && currentTenant.tier !== tier) {
+      setUpgradeLoadingTier(null);
+      await handleBillingOpen();
+      return;
+    }
+
+    try {
+      const requestedTier = tier === SubscriptionTier.PRO ? "pro" : "elite";
+      const checkout = await createCheckout(requestedTier);
+      window.location.href = checkout.url;
+    } catch (error) {
+      setUpgradeError(error instanceof Error ? error.message : "Unable to start checkout.");
+      setUpgradeLoadingTier(null);
+    }
   };
 
   const switchTenant = () => {
@@ -224,7 +255,11 @@ export default function App() {
   const renderView = () => {
     // Paywall logic
     if (view === AppView.RESEARCH && currentTenant.tier === SubscriptionTier.STARTER) {
-      return <Pricing currentTier={currentTenant.tier} onUpgrade={handleUpgrade} />;
+      return <Pricing currentTier={currentTenant.tier} onUpgrade={handleUpgrade} loadingTier={upgradeLoadingTier} errorMessage={upgradeError} />;
+    }
+
+    if (view === AppView.VOICE_LAB && currentTenant.tier === SubscriptionTier.STARTER) {
+      return <Pricing currentTier={currentTenant.tier} onUpgrade={handleUpgrade} loadingTier={upgradeLoadingTier} errorMessage={upgradeError} />;
     }
 
     switch (view) {
@@ -239,7 +274,7 @@ export default function App() {
       case AppView.VOICE_LAB:
         return <VoiceLab />;
       case AppView.PRICING:
-        return <Pricing currentTier={currentTenant.tier} onUpgrade={handleUpgrade} />;
+        return <Pricing currentTier={currentTenant.tier} onUpgrade={handleUpgrade} loadingTier={upgradeLoadingTier} errorMessage={upgradeError} />;
       default:
         return <Dashboard />;
     }
@@ -265,6 +300,10 @@ export default function App() {
   // 2. Auth Case
   if (view === AppView.AUTH && !isAuthenticated) {
     return <Auth onAuthComplete={handleAuthComplete} initialMode={authMode} />;
+  }
+
+  if (view === AppView.PRICING && !isAuthenticated) {
+    return <Pricing currentTier={SubscriptionTier.STARTER} onUpgrade={handleUpgrade} loadingTier={upgradeLoadingTier} errorMessage={upgradeError} />;
   }
 
   // 3. Onboarding Case

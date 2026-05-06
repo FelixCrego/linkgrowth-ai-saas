@@ -12,6 +12,14 @@ function priceIdToTier(priceId: string | null | undefined): "starter" | "pro" | 
   return "starter";
 }
 
+function subscriptionPeriodEndIso(subscription: Stripe.Subscription): string | null {
+  const topLevel = (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end;
+  if (typeof topLevel === "number") return new Date(topLevel * 1000).toISOString();
+  const itemLevel = subscription.items.data[0]?.current_period_end;
+  if (typeof itemLevel === "number") return new Date(itemLevel * 1000).toISOString();
+  return null;
+}
+
 export const config = { api: { bodyParser: false } };
 
 async function readRawBody(req: VercelRequest): Promise<Buffer> {
@@ -80,8 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (workspaceId) {
         const priceId = subscription.items.data[0]?.price?.id ?? null;
         const tier = priceIdToTier(priceId);
-        const currentPeriodEndRaw = (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end;
-        const currentPeriodEnd = typeof currentPeriodEndRaw === "number" ? new Date(currentPeriodEndRaw * 1000).toISOString() : null;
+        const currentPeriodEnd = subscriptionPeriodEndIso(subscription);
 
         await sql(
           `insert into subscriptions (

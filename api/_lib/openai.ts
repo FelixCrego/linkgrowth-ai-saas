@@ -272,6 +272,7 @@ export async function generateWebResearchJson<T>(
 type ImageGenerationResponse = {
   data?: Array<{
     b64_json?: string;
+    url?: string;
   }>;
   error?: {
     message?: string;
@@ -281,6 +282,19 @@ type ImageGenerationResponse = {
 export async function generateImageBase64(prompt: string): Promise<string> {
   const apiKey = requireEnv("OPENAI_API_KEY");
   const model = optionalEnv("OPENAI_IMAGE_MODEL") ?? "gpt-image-1";
+  const isGptImageModel = model.toLowerCase().startsWith("gpt-image");
+
+  const body: Record<string, unknown> = {
+    model,
+    prompt,
+    size: "1024x1024",
+    quality: "medium",
+  };
+
+  // GPT Image models return base64 by default; passing response_format causes "unknown parameter" on some deployments.
+  if (!isGptImageModel) {
+    body.response_format = "b64_json";
+  }
 
   const response = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
@@ -288,13 +302,7 @@ export async function generateImageBase64(prompt: string): Promise<string> {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model,
-      prompt,
-      size: "1024x1024",
-      quality: "medium",
-      response_format: "b64_json",
-    }),
+    body: JSON.stringify(body),
   });
 
   const raw = await response.text();
@@ -310,10 +318,20 @@ export async function generateImageBase64(prompt: string): Promise<string> {
     throw new Error(errorMessage);
   }
 
-  const base64 = parsed.data?.[0]?.b64_json;
-  if (!base64) {
-    throw new Error("OpenAI returned empty image data");
+  const directBase64 = parsed.data?.[0]?.b64_json;
+  if (directBase64) {
+    return directBase64;
   }
 
-  return base64;
+  const remoteUrl = parsed.data?.[0]?.url;
+  if (remoteUrl) {
+    const imageResp = await fetch(remoteUrl);
+    if (!imageResp.ok) {
+      throw new Error(`Failed to fetch generated image URL: ${imageResp.status}`);
+    }
+    const arr = await imageResp.arrayBuffer();
+    return Buffer.from(arr).toString("base64");
+  }
+
+  throw new Error("OpenAI returned empty image data");
 }

@@ -53,6 +53,7 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const [posting, setPosting] = useState(false);
+  const [workflowStage, setWorkflowStage] = useState<"idle" | "research" | "drafting">("idle");
 
   useEffect(() => {
     if (!initialPrompt) return;
@@ -71,7 +72,9 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
     } else {
       setGenerating(true);
     }
+    setWorkflowStage("research");
     setError("");
+    const stageTimer = window.setTimeout(() => setWorkflowStage("drafting"), 1200);
     try {
       const result = await generatePostApi(prompt, {
         postType,
@@ -84,6 +87,8 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error generating content");
     }
+    window.clearTimeout(stageTimer);
+    setWorkflowStage("idle");
     if (regenerate) {
       setRegenerating(false);
     } else {
@@ -147,7 +152,7 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
         <div>
           <p className="text-[10px] font-bold text-brand-accent uppercase tracking-[0.3em] mb-2">Editor</p>
           <h2 className="text-4xl font-light tracking-tight text-white mb-2">Content Engine</h2>
-          <p className="text-slate-500 text-sm italic font-serif">Transform research insights into high-velocity viral content.</p>
+          <p className="text-slate-500 text-sm italic font-serif">Unified workflow: Step 1 Deep Research, Step 2 Post Generation, Step 3 Image Suggestions.</p>
         </div>
 
         <div className="space-y-4">
@@ -223,8 +228,15 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
             className="w-full bg-brand-accent text-white py-4 rounded-xl flex items-center justify-center gap-3 font-bold uppercase text-[10px] tracking-[0.2em] shadow-xl shadow-brand-accent/10 hover:shadow-brand-accent/20 transition-all disabled:opacity-50"
           >
             {generating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {generating ? "Synthesizing Draft..." : "Generate Post v2.1"}
+            {generating ? "Running Unified Workflow..." : "Generate Post v2.2"}
           </button>
+          {(generating || regenerating) && (
+            <p className="text-[11px] text-slate-400">
+              {workflowStage === "research"
+                ? "Step 1/2: Running Deep Research..."
+                : "Step 2/2: Writing Post From Research..."}
+            </p>
+          )}
         </div>
         {error && <p className="text-sm text-red-400">{error}</p>}
         {research && (

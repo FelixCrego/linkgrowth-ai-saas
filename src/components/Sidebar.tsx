@@ -1,7 +1,6 @@
 import { motion } from "motion/react";
 import { 
   BarChart3, 
-  Search, 
   PenTool, 
   Users, 
   Linkedin, 
@@ -24,8 +23,7 @@ interface SidebarProps {
 export const Sidebar = ({ currentView, setView, tenant, onSwitchTenant, onLogout, onOpenBilling }: SidebarProps) => {
   const menuItems = [
     { id: AppView.DASHBOARD, label: "Analytics", icon: BarChart3 },
-    { id: AppView.RESEARCH, label: "Deep Research", icon: Search },
-    { id: AppView.COMPOSER, label: "Content Engine", icon: PenTool },
+    { id: AppView.COMPOSER, label: "Content Engine + Research", icon: PenTool },
     { id: AppView.VOICE_LAB, label: "Voice Lab", icon: Mic2 },
     { id: AppView.NETWORK, label: "Growth Hub", icon: Users },
   ];

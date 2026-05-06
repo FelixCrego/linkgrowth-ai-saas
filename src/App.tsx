@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./components/Dashboard";
-import { Research } from "./components/Research";
 import { PostComposer } from "./components/PostComposer";
 import { NetworkManager } from "./components/NetworkManager";
 import { Onboarding } from "./components/Onboarding";
-import { UserPreferences, AppView, SubscriptionTier, Tenant, Trend } from "./types";
+import { UserPreferences, AppView, SubscriptionTier, Tenant } from "./types";
 import { motion, AnimatePresence } from "motion/react";
 import { Pricing } from "./components/Pricing";
 import { LandingPage } from "./components/LandingPage";
@@ -226,16 +225,6 @@ export default function App() {
     await hydrateSession();
   };
 
-  const handleGenerateFromResearch = (trend: Trend) => {
-    const niche = preferences.niche || "my niche";
-    const industry = preferences.industry || "my industry";
-    const targetAudience = preferences.targetAudience || "my target audience";
-    const tone = preferences.tone || "Professional";
-    const prompt = `Create a high-engagement LinkedIn post about "${trend.topic}" for niche "${niche}" in industry "${industry}", targeting "${targetAudience}", using "${tone}" tone. Trend context: reach is ${trend.reach}, sentiment is ${trend.sentiment}. Include a bold hook, tactical takeaways, and a CTA.`;
-    setComposerInitialPrompt(prompt);
-    setView(AppView.COMPOSER);
-  };
-
   useEffect(() => {
     const syncTier = async () => {
       if (!isAuthenticated) return;
@@ -264,11 +253,6 @@ export default function App() {
   }
 
   const renderView = () => {
-    // Paywall logic
-    if (view === AppView.RESEARCH && currentTenant.tier === SubscriptionTier.STARTER) {
-      return <Pricing currentTier={currentTenant.tier} onUpgrade={handleUpgrade} loadingTier={upgradeLoadingTier} errorMessage={upgradeError} />;
-    }
-
     if (view === AppView.VOICE_LAB && currentTenant.tier === SubscriptionTier.STARTER) {
       return <Pricing currentTier={currentTenant.tier} onUpgrade={handleUpgrade} loadingTier={upgradeLoadingTier} errorMessage={upgradeError} />;
     }
@@ -277,7 +261,7 @@ export default function App() {
       case AppView.DASHBOARD:
         return <Dashboard />;
       case AppView.RESEARCH:
-        return <Research onGenerateContent={handleGenerateFromResearch} />;
+        return <PostComposer initialPrompt={composerInitialPrompt} />;
       case AppView.COMPOSER:
         return <PostComposer initialPrompt={composerInitialPrompt} />;
       case AppView.NETWORK:

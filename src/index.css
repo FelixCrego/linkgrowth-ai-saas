@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,900;1,900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-serif: "Playfair Display", serif;
+
+  --color-brand-dark: #0A0A0B;
+  --color-brand-sidebar: #111113;
+  --color-brand-border: #1e293b;
+  --color-brand-accent: #2563eb; /* Elegant Blue */
+  --color-brand-surface: rgba(15, 23, 42, 0.4); /* slate-900/40 */
+}
+
+@layer base {
+  body {
+    @apply bg-brand-dark text-slate-200 font-sans antialiased;
+  }
+}
+
+/* Elegant UI Patterns */
+.glass-panel {
+  @apply bg-brand-surface border border-brand-border backdrop-blur-md rounded-2xl;
+}
+
+.data-grid {
+  @apply border-t border-brand-border;
+}
+
+.data-row {
+  @apply grid grid-cols-[40px_1.5fr_1fr_1fr] p-4 border-b border-brand-border transition-colors cursor-pointer hover:bg-slate-800/50;
+}
+
+.col-header {
+  @apply font-sans font-bold text-[10px] text-slate-500 uppercase tracking-widest mb-2;
+}
+
+.data-value {
+  @apply font-mono text-xs tracking-tight text-white;
+}
+
+/* Animating paths */
+.motion-path {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: dash 3s linear forwards;
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: 0;
+  }
+}

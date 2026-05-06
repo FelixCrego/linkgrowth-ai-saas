@@ -30,9 +30,14 @@ const POST_TYPE_OPTIONS: Array<{ value: PostType; label: string }> = [
   { value: "listicle", label: "Listicle" },
 ];
 
+const TONE_OPTIONS = ["Professional", "Bold", "Friendly", "Analytical", "Inspirational", "Direct"];
+const VOICE_STYLE_OPTIONS = ["Standard", "Founder POV", "Educator", "Storyteller", "Executive", "Trained Voice"];
+
 export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
   const [prompt, setPrompt] = useState("");
   const [postType, setPostType] = useState<PostType>("thought_leadership");
+  const [tone, setTone] = useState("Professional");
+  const [voiceStyle, setVoiceStyle] = useState("Standard");
   const [generating, setGenerating] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
@@ -62,6 +67,8 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
     try {
       const result = await generatePostApi(prompt, {
         postType,
+        tone,
+        voiceStyle,
         regenerateFrom: regenerate ? output : undefined,
       });
       setOutput(result.content || "Failed to generate post.");
@@ -128,7 +135,7 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
               <span className="text-[9px] font-bold text-brand-accent uppercase tracking-[0.1em]">Voice DNA Sync Active</span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <label className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Post Type</label>
             <select
               value={postType}
@@ -138,6 +145,28 @@ export const PostComposer = ({ initialPrompt = "" }: PostComposerProps) => {
               {POST_TYPE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={tone}
+              onChange={(e) => setTone(e.target.value)}
+              className="bg-slate-900 border border-brand-border rounded-lg px-3 py-2 text-xs text-white"
+            >
+              {TONE_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  Tone: {option}
+                </option>
+              ))}
+            </select>
+            <select
+              value={voiceStyle}
+              onChange={(e) => setVoiceStyle(e.target.value)}
+              className="bg-slate-900 border border-brand-border rounded-lg px-3 py-2 text-xs text-white"
+            >
+              {VOICE_STYLE_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  Voice: {option}
                 </option>
               ))}
             </select>

@@ -71,11 +71,17 @@ export type PostType = "thought_leadership" | "how_to" | "story" | "case_study" 
 
 export async function generatePost(
   prompt: string,
-  options?: { postType?: PostType; regenerateFrom?: string }
+  options?: { postType?: PostType; tone?: string; voiceStyle?: string; regenerateFrom?: string }
 ) {
   return apiFetch<{ content: string }>("/api/ai/post", {
     method: "POST",
-    body: JSON.stringify({ prompt, postType: options?.postType, regenerateFrom: options?.regenerateFrom }),
+    body: JSON.stringify({
+      prompt,
+      postType: options?.postType,
+      tone: options?.tone,
+      voiceStyle: options?.voiceStyle,
+      regenerateFrom: options?.regenerateFrom,
+    }),
   });
 }
 

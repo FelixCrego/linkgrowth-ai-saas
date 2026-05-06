@@ -18,6 +18,8 @@ const postTypeSchema = z.enum([
 const schema = z.object({
   prompt: z.string().min(5),
   postType: postTypeSchema.optional(),
+  tone: z.string().min(2).max(80).optional(),
+  voiceStyle: z.string().min(2).max(120).optional(),
   regenerateFrom: z.string().min(20).optional(),
 });
 
@@ -29,6 +31,16 @@ type OnboardingRow = {
   target_audience: string;
   tone: string;
   frequency: string;
+};
+
+type VoiceProfileRow = {
+  profile_json: {
+    tone?: string;
+    style?: string;
+    lengthPreference?: string;
+    emojiUsage?: string;
+    hookStrategy?: string;
+  };
 };
 
 function postTypeInstruction(postType: PostType): string {
@@ -68,19 +80,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       [session.workspaceId]
     );
     const onboarding = onboardingRes.rows[0];
+    const voiceProfileRes = await sql<VoiceProfileRow>(
+      "select profile_json from voice_profiles where workspace_id = $1 order by created_at desc limit 1",
+      [session.workspaceId]
+    );
+    const trainedVoice = voiceProfileRes.rows[0]?.profile_json;
 
     const context = onboarding
       ? `Niche: ${onboarding.niche}\nIndustry: ${onboarding.industry}\nTarget Audience: ${onboarding.target_audience}\nPreferred Tone: ${onboarding.tone}\nPosting Frequency: ${onboarding.frequency}`
       : "Niche context is unavailable for this workspace.";
 
     const postType = parsed.data.postType ?? "thought_leadership";
+    const selectedTone = parsed.data.tone ?? onboarding?.tone ?? "Professional";
+    const selectedVoiceStyle = parsed.data.voiceStyle ?? "Standard";
+    const voiceInstruction =
+      selectedVoiceStyle === "Trained Voice"
+        ? trainedVoice
+          ? `Use this trained writing profile as a hard voice constraint: tone="${trainedVoice.tone ?? ""}", style="${trainedVoice.style ?? ""}", lengthPreference="${trainedVoice.lengthPreference ?? ""}", emojiUsage="${trainedVoice.emojiUsage ?? ""}", hookStrategy="${trainedVoice.hookStrategy ?? ""}".`
+          : "Trained Voice was selected but no trained profile exists; use a crisp professional voice."
+        : `Write in the selected voice style: ${selectedVoiceStyle}.`;
     const variationInstruction = parsed.data.regenerateFrom
       ? `Create a fresh variation that is clearly different from the previous draft below. Use a new opening line, different structure, and different hashtags.\n\nPrevious Draft:\n${parsed.data.regenerateFrom}`
       : "";
 
     const content = await generateText(
       "You are a LinkedIn growth copywriter. Use the provided business context as a hard constraint. Write an engaging LinkedIn post with a strong hook, clear whitespace formatting, tactical insight, a concrete CTA, and 3 relevant hashtags. Avoid generic advice and keep the post specific to the niche and target audience.",
-      `Business Context:\n${context}\n\nPost Type:\n${postTypeInstruction(postType)}\n\nPrompt:\n${parsed.data.prompt}\n\n${variationInstruction}`
+      `Business Context:\n${context}\n\nTone:\nUse this tone as a hard constraint: ${selectedTone}.\n\nVoice:\n${voiceInstruction}\n\nPost Type:\n${postTypeInstruction(postType)}\n\nPrompt:\n${parsed.data.prompt}\n\n${variationInstruction}`
     );
 
     await sql("insert into generated_posts (workspace_id, user_id, prompt, content) values ($1, $2, $3, $4)", [
